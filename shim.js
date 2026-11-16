@@ -112,7 +112,40 @@
     var rs = document.createElement('button'); rs.textContent = 'Restore'; rs.title = 'Replace all data from a backup file';
     rs.onclick = function () { pick.click(); };
     host.appendChild(bk); host.appendChild(rs); host.appendChild(pick);
+    /* Word formats: loaded once from a private file, kept on this device only */
+    var fp = document.createElement('input'); fp.type = 'file'; fp.accept = '.zip,application/zip'; fp.hidden = true;
+    fp.onchange = async function () {
+      var f = fp.files && fp.files[0]; if (!f) return;
+      try {
+        var zip = await JSZip.loadAsync(await f.arrayBuffer()); var n = 0;
+        for (var i = 0; i < FORMATS.length; i++) {
+          var e = zip.file(FORMATS[i] + '.docx'); if (!e) continue;
+          var buf = await e.async('arraybuffer');
+          await idb('readwrite', (function (k, b) { return function (s) { return s.put(b, k); }; })(FORMATS[i], buf)); n++;
+        }
+        note(n ? n + ' Word formats loaded' : 'That file has no Case Desk formats');
+      } catch (e2) { note('Could not read that formats file'); }
+      fp.value = '';
+    };
+    var fb = document.createElement('button'); fb.textContent = 'Formats'; fb.title = 'Load your Word formats file';
+    fb.onclick = function () { fp.click(); };
+    host.appendChild(fb); host.appendChild(fp);
   });
+
+  var FORMATS = ['report', 'worksheet', 'forwarding', 'notesheet', 'bsa63'];
+  function idb(mode, fn) {
+    return new Promise(function (resolve, reject) {
+      var o = indexedDB.open('casedesk-formats', 1);
+      o.onupgradeneeded = function () { o.result.createObjectStore('f'); };
+      o.onerror = function () { reject(o.error); };
+      o.onsuccess = function () {
+        var tx = o.result.transaction('f', mode); var rq = fn(tx.objectStore('f'));
+        tx.oncomplete = function () { resolve(rq && rq.result); o.result.close(); };
+        tx.onerror = function () { reject(tx.error); };
+      };
+    });
+  }
+  window.CASEDESK_FORMATS = function (name) { return idb('readonly', function (s) { return s.get(name); }).catch(function () { return null; }); };
 
   if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 })();

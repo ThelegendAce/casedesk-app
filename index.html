@@ -383,7 +383,7 @@ details.ex .sm{flex:1;min-width:0;font-weight:600;font-size:13px;overflow-wrap:a
 <div class="toast" id="toast" hidden></div>
 
 <script src="shim.js"></script><script src="jspdf.umd.min.js"></script>
-<script src="jspdf.plugin.autotable.min.js"></script>
+<script src="jspdf.plugin.autotable.min.js"></script><script src="jszip.min.js"></script>
 <script>
 (function(){
 const STEPS=[
@@ -693,10 +693,10 @@ function renderSheet(){
   const head=el('div','sh');const t=el('div','ttl');const sm0=el('small','muted','Case '+(c.sno??'')+' · '+(c.rc||''));sm0.id='shTitle';t.append(sm0,el('div','mono',c.cfsl));
   const x=el('button','ghost','Close');x.onclick=closeSheet;head.append(t,x);
   const tabs=el('div','stabs');const et=exTotals(c);
-  [['check','Checklist',doneCount(c)+'/'+STEPS.length],['ex','Exhibits & analysis',String(et.n)],['final','Final data',copiesState(c)+'/3'],['info','Details','']].forEach(([k,l,b])=>{
+  [['check','Checklist',doneCount(c)+'/'+STEPS.length],['ex','Exhibits & analysis',String(et.n)],['final','Final data',copiesState(c)+'/3'],['info','Details',''],['docs','Documents','']].forEach(([k,l,b])=>{
     const bt=el('button',k===sheetTab?'on':'',l);bt.type='button';bt.id='stab-'+k;if(b)bt.append(el('span','count',b));bt.onclick=()=>{sheetTab=k;renderSheet()};tabs.append(bt)});
   const body=el('div','sb');
-  ({check:tabCheck,ex:tabEx,final:tabFinal,info:tabInfo})[sheetTab](c,body);
+  ({check:tabCheck,ex:tabEx,final:tabFinal,info:tabInfo,docs:tabDocs})[sheetTab](c,body);
   sh.append(head,tabs,body);
   if(prevTab===sheetTab)body.scrollTop=prevScroll;
   if(focusId){const f=document.getElementById(focusId);if(f&&sh.contains(f))f.focus({preventScroll:true})}
@@ -1343,6 +1343,187 @@ function renderAll(){
   if(openCase&&openCase!=='__new')renderSheet();
 }
 route();renderAll();
+
+/* ---------- case documents: fill the Word formats (report, worksheet, forwarding, notesheet, 63 BSA) ---------- */
+const WNS='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const DOCS=[['report','Examination report'],['worksheet','Case worksheet'],['forwarding','Forwarding letter'],['notesheet','TR notesheet'],['bsa63','63 BSA certificate']];
+const DTYPES=[['mobile','Mobile phone'],['sim','SIM card'],['mc','Memory card'],['pd','Pen drive'],['hdd','Hard disk'],['laptop','Laptop'],['other','Other']];
+const DTNAME={mobile:'Mobile Phone',sim:'SIM Card',mc:'Memory Card',pd:'Pen Drive',hdd:'Hard Disk',laptop:'Laptop',other:'Exhibit'};
+const NUMW=['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen','Twenty'];
+const numWord=n=>(NUMW[n]||String(n))+' ('+String(n).padStart(2,'0')+')';
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const ordinal=d=>d+((d%10===1&&d!==11)?'st':(d%10===2&&d!==12)?'nd':(d%10===3&&d!==13)?'rd':'th');
+function dparts(iso){if(!iso)return null;const [y,m,d]=iso.split('-');return {y,m,d}}
+const dSep=(iso,s)=>{const p=dparts(iso);return p?p.d+s+p.m+s+p.y:''};
+const dLong=(iso,comma)=>{const p=dparts(iso);return p?ordinal(Number(p.d))+' '+MONTHS[Number(p.m)-1]+(comma?', ':' ')+p.y:''};
+const q=s=>'‘'+s+'’';
+function joinAnd(a){return a.length<2?a.join(''):a.slice(0,-1).join(', ')+' & '+a[a.length-1]}
+
+/* --- XML fill engine --- */
+function wText(n){return [...n.getElementsByTagNameNS(WNS,'t')].map(t=>t.textContent).join('')}
+function lookup(ctx,name){for(const c of ctx){if(c&&Object.prototype.hasOwnProperty.call(c,name))return c[name]}return undefined}
+function valueRuns(run,val){
+  const d=run.ownerDocument,out=[];const rPr=[...run.childNodes].find(x=>x.localName==='rPr');
+  String(val==null?'':val).split('\n').forEach((line,li)=>{
+    const segs=line.split('**');if(!segs.length)segs.push('');
+    segs.forEach((s,si)=>{if(!s&&!(li>0&&si===0))return;
+      const r=d.createElementNS(WNS,'w:r');let pr=rPr?rPr.cloneNode(true):null;
+      if(si%2===1){if(!pr)pr=d.createElementNS(WNS,'w:rPr');if(!pr.getElementsByTagNameNS(WNS,'b').length)pr.insertBefore(d.createElementNS(WNS,'w:b'),pr.firstChild)}
+      if(pr)r.appendChild(pr);
+      if(li>0&&si===0)r.appendChild(d.createElementNS(WNS,'w:br'));
+      if(s){const t=d.createElementNS(WNS,'w:t');t.setAttribute('xml:space','preserve');t.textContent=s;r.appendChild(t)}
+      out.push(r)})});
+  return out}
+function fillPara(p,get){
+  for(let guard=0;guard<200;guard++){
+    const ts=[...p.getElementsByTagNameNS(WNS,'t')];const full=ts.map(t=>t.textContent).join('');
+    const m=/\{\{([^{}]+)\}\}/.exec(full);if(!m)return;
+    let pos=0,si=-1,so=0,ei=-1,eo=0;const a=m.index,b=m.index+m[0].length;
+    ts.forEach((t,i)=>{const L=t.textContent.length;if(si<0&&a<pos+L){si=i;so=a-pos}if(ei<0&&b<=pos+L){ei=i;eo=b-pos}pos+=L});
+    if(si<0||ei<0)return;
+    const st=ts[si],run=st.parentNode;const before=st.textContent.slice(0,so);const after=ts[ei].textContent.slice(eo);
+    const runs=valueRuns(run,get(m[1]));
+    if(si===ei){st.textContent=before;if(after){const d=run.ownerDocument;const ar=d.createElementNS(WNS,'w:r');const rp=[...run.childNodes].find(x=>x.localName==='rPr');if(rp)ar.appendChild(rp.cloneNode(true));
+        const at=d.createElementNS(WNS,'w:t');at.setAttribute('xml:space','preserve');at.textContent=after;ar.appendChild(at);runs.push(ar)}}
+    else{st.textContent=before;for(let i=si+1;i<ei;i++)ts[i].textContent='';ts[ei].textContent=after}
+    st.setAttribute('xml:space','preserve');
+    let ref=run.nextSibling;runs.forEach(r=>run.parentNode.insertBefore(r,ref));
+  }}
+function fillNode(node,ctx){const get=n=>/^[#\/@^*]/.test(n)?'':lookup(ctx,n);[...node.getElementsByTagNameNS(WNS,'p')].forEach(p=>fillPara(p,get))}
+function strip(node,token){[...node.getElementsByTagNameNS(WNS,'p')].forEach(p=>{if(wText(p).includes(token))fillPara(p,n=>'{{'+n+'}}'===token?'':'\u0001'+n+'\u0002')});
+  [...node.getElementsByTagNameNS(WNS,'t')].forEach(t=>{if(t.textContent.includes('\u0001'))t.textContent=t.textContent.replace(/\u0001/g,'{{').replace(/\u0002/g,'}}')})}
+const kids=(n,name)=>[...n.childNodes].filter(x=>x.localName===name);
+function tcPrOf(tc){let pr=kids(tc,'tcPr')[0];if(!pr){pr=tc.ownerDocument.createElementNS(WNS,'w:tcPr');tc.insertBefore(pr,tc.firstChild)}return pr}
+function fillRow(row,ctx){
+  kids(row,'tc').forEach((tc,k)=>{if(!wText(tc).includes('{{^}}'))return;strip(tc,'{{^}}');
+    const d=tc.ownerDocument;tcPrOf(tc).appendChild(d.createElementNS(WNS,'w:vMerge'));
+    let pv=row.previousSibling;while(pv&&pv.localName!=='tr')pv=pv.previousSibling;const up=pv&&kids(pv,'tc')[k];
+    if(up){const pr=tcPrOf(up);if(!kids(pr,'vMerge').length){const v=d.createElementNS(WNS,'w:vMerge');v.setAttributeNS(WNS,'w:val','restart');pr.appendChild(v)}}});
+  fillNode(row,ctx)}
+function expandRows(rows,ctx){
+  for(let i=0;i<rows.length;i++){const m=/\{\{#(\w+)\}\}/.exec(wText(rows[i]));
+    if(!m){fillRow(rows[i],ctx);continue}
+    const name=m[1];let j=i;while(j<rows.length-1&&!wText(rows[j]).includes('{{/'+name+'}}'))j++;
+    const block=rows.slice(i,j+1);const items=lookup(ctx,name)||[];
+    items.forEach(it=>{const cl=block.map(r=>r.cloneNode(true));cl.forEach(r=>{block[0].parentNode.insertBefore(r,block[0]);strip(r,'{{#'+name+'}}');strip(r,'{{/'+name+'}}')});expandRows(cl,[it].concat(ctx))});
+    block.forEach(r=>r.parentNode.removeChild(r));i=j}}
+function expandCols(tbl,ctx){
+  const rows=kids(tbl,'tr');let k=-1,name=null;
+  rows.some(r=>kids(r,'tc').some((tc,i)=>{const m=/\{\{@(\w+)\}\}/.exec(wText(tc));if(m){k=i;name=m[1];return true}return false}));
+  if(k<0)return true;const items=lookup(ctx,name)||[];
+  if(!items.length){tbl.parentNode.removeChild(tbl);return false}
+  const d=tbl.ownerDocument;
+  rows.forEach(r=>{const proto=kids(r,'tc')[k];if(!proto)return;
+    const wEl=kids(tcPrOf(proto),'tcW')[0];const w=wEl?Number(wEl.getAttributeNS(WNS,'w')||wEl.getAttribute('w:w'))||0:0;
+    items.forEach(it=>{const c=proto.cloneNode(true);strip(c,'{{@'+name+'}}');fillNode(c,[it].concat(ctx));
+      if(w){const e=kids(tcPrOf(c),'tcW')[0];e.setAttributeNS(WNS,'w:w',String(Math.floor(w/items.length)))}r.insertBefore(c,proto)});
+    r.removeChild(proto)});
+  const grid=kids(tbl,'tblGrid')[0];if(grid){const g=kids(grid,'gridCol')[k];if(g){const w=Number(g.getAttributeNS(WNS,'w')||g.getAttribute('w:w'))||0;
+    items.forEach(()=>{const n=d.createElementNS(WNS,'w:gridCol');n.setAttributeNS(WNS,'w:w',String(Math.floor(w/items.length)));grid.insertBefore(n,g)});grid.removeChild(g)}}
+  return true}
+function fillXml(xml,data){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');const ctx=[data];
+  [...doc.getElementsByTagNameNS(WNS,'tbl')].forEach(t=>{if(!t.parentNode)return;if(!/\{\{[@#]/.test(wText(t)))return;if(expandCols(t,ctx))expandRows(kids(t,'tr'),ctx)});
+  [...doc.getElementsByTagNameNS(WNS,'p')].forEach(p=>{const m=/^\s*\{\{\*(\w+)\}\}\s*$/.exec(wText(p));if(!m)return;
+    (lookup(ctx,m[1])||[]).forEach(s=>{const c=p.cloneNode(true);fillPara(c,()=>s);p.parentNode.insertBefore(c,p)});p.parentNode.removeChild(p)});
+  fillNode(doc.documentElement,ctx);
+  return new XMLSerializer().serializeToString(doc)}
+
+/* --- data for one case --- */
+function docItems(c){const out=[];((c.docs||{}).parcels||[]).forEach((p,pi)=>(p.items||[]).forEach(it=>out.push(Object.assign({},it,{pi,parcelName:'Parcel-'+(pi+1)}))));return out}
+function parcelDesc(p,n){return 'One (01) **'+(p.colour||'Yellow')+'** colour sealed '+(p.container||'paper envelope')+' labelled as:\n**'+q(p.label||'')+'**,\nsealed at **'+(NUMW[Number(p.seals)]||p.seals||'')+'** ('+String(p.seals||'').padStart(2,'0')+') places with the seal impression of:\n**'+q(p.sealText||'')+'** and marked '+q('Parcel-'+n)+' in the laboratory.'}
+function housing(it,all){const ch=all.filter(x=>x.parent&&x.parent===it.mark);const s=ch.filter(x=>x.type==='sim'),m=ch.filter(x=>x.type==='mc');const parts=[];
+  if(s.length)parts.push('**'+NUMW[s.length]+'** ('+String(s.length).padStart(2,'0')+') SIM card'+(s.length>1?'s':''));if(m.length)parts.push('**'+NUMW[m.length]+'** ('+String(m.length).padStart(2,'0')+') Memory card'+(m.length>1?'s':''));return {text:parts.join(' & '),marks:ch.map(x=>x.mark).join(' + ')}}
+function itemDetails(it,all){
+  const L=(k,v)=>v?'\n**'+k+'** '+v:'';
+  if(it.type==='mobile'){const h=housing(it,all);return 'It contains (01) **Mobile:**'+L('Make:',it.make)+L('Model Name:',it.modelName)+L('Model No:',it.modelNo)+L('Serial No:',it.serial)+(h.text?'\n\nhousing '+h.text.replace(/\*\*/g,'')+'.':'')}
+  if(it.type==='sim'){const sib=all.filter(x=>x.type==='sim'&&x.parent===it.parent&&x.pi===it.pi);return '**SIM CARD'+(sib.length>1?' '+(sib.indexOf(sib.find(x=>x.mark===it.mark))+1):'')+'**\n'+L('Vendor:',it.vendor)+L('ICCID:',it.iccid)}
+  return '**'+(it.type==='mc'?'Memory card':DTNAME[it.type]||'Exhibit')+'**\n'+L('Make:',it.make)+L('Model:',it.modelName)+L('Serial no.:',it.serial)+L('Storage:',it.storage)}
+function docData(c){
+  const D=c.docs||{};const all=docItems(c);const marks=all.map(x=>x.mark).filter(Boolean);const qm=a=>a.map(q).join(', ');
+  const by=t=>all.filter(x=>x.type===t);const phones=by('mobile'),sims=by('sim');const others=all.filter(x=>x.type!=='mobile'&&x.type!=='sim');
+  const kinds=[];[['mobile','mobile phone'],['sim','SIM card'],['mc','Memory Card'],['pd','Pen Drive'],['hdd','Hard Disk'],['laptop','Laptop'],['other','exhibit']].forEach(([t,l])=>{const n=by(t).length;if(n)kinds.push(l+(n>1?'s':''))});
+  const tools=[];all.forEach(x=>{if(x.tool&&!tools.includes(x.tool))tools.push(x.tool)});all.forEach(x=>{const t=(x.reportTool||'').replace(/^.*?\busing\s+/i,'');if(t&&!tools.includes(t))tools.push(t)});(D.extraTools||'').split(/\n|;/).map(s=>s.trim()).filter(Boolean).forEach(t=>{if(!tools.includes(t))tools.push(t)});
+  const groups={};all.forEach(x=>{if(!x.extraction)return;const k=x.extraction+'|'+x.type;(groups[k]=groups[k]||[]).push(x.mark)});
+  const cap=D.mediaCap||'';const mk=D.mediaMark||'';const kind=D.mediaKind||'USB Pen Drive';
+  const cnt=t=>{const n=by(t).length;return n?numWord(n):'-----'};
+  const folders=(D.parcels||[]).map((p,pi)=>all.filter(x=>x.pi===pi).map(x=>(x.mark||'').replace(/\//g,'')).join(', ')).filter(Boolean).map(s=>'**'+q(s)+'**');
+  const tool=x=>x.extraction||x.tool?((x.extraction||'')+(x.tool?' done by, '+q('**'+x.tool+'**'):'')).trim():'';
+  const rep=x=>x.reportTool||'';
+  const dec=(x,i)=>Object.assign({},x,{n:i+1,extraction:tool(x),reportTool:rep(x),typeName:DTNAME[x.type]||'Exhibit',markQ:'**'+q(x.mark||'')+'**',makeModel:[x.make,x.modelName].filter(Boolean).join(' '),
+    imeiText:'**IMEI (SIM Slot 1):**\n'+(x.imei1||'')+'\n**IMEI (SIM Slot 2):**\n'+(x.imei2||''),housing:(()=>{const h=housing(x,all);return h.text?h.text+'\n'+h.marks:''})(),locked:(x.locked||'').toUpperCase()});
+  return {cfsl:c.cfsl||'',to:D.to||'',memoNo:D.memoNo||'',memoDate:dSep(D.memoDate,'/'),us:D.us||'',rcNo:D.rcNo||c.rc||'',rcDate:dSep(D.rcDate,'/'),branch:D.branch||'',through:D.through||'',diaryNo:D.diaryNo||'',
+    receivedDate:dSep(c.received,'/'),receivedDash:dSep(c.received,'-'),openedSlash:dSep(c.opened,'/'),openedLong:dLong(c.opened,false),reportDate:dSep(c.reported,'.'),reportSlash:dSep(c.reported,'/'),reportLong:dLong(c.reported,true),
+    certTime:D.certTime||'',hash:D.hash||'',mediaMark:mk,mediaMake:D.mediaMake||'',mediaCap:cap,mediaSectors:D.mediaSectors||'',mediaDesc:[kind,D.mediaMake].filter(Boolean).join(' ')+(cap?', '+cap:''),
+    parcelCount:numWord((D.parcels||[]).length),
+    parcels:(D.parcels||[]).map((p,pi)=>{const its=all.filter(x=>x.pi===pi);const f=its[0]||{};return {n:pi+1,parcelName:'**Parcel-'+String(pi+1).padStart(2,'0')+'**',desc:parcelDesc(p,pi+1),details:its.length?itemDetails(f,all):'',mark:'**'+(f.mark||'')+'**',subs:its.slice(1).map(x=>({details:itemDetails(x,all),mark:'**'+(x.mark||'')+'**'}))}}),
+    phones:phones.map(dec),sims:sims.map(dec),others:others.map(dec),storage:others.map(dec),
+    storageCount:others.length?joinAnd([...new Set(others.map(x=>x.type))].map(t=>numWord(by(t).length).replace(/^./,ch=>ch.toLowerCase())+' '+DTNAME[t]+(by(t).length>1?'s':''))):'Nil',
+    mobileCount:phones.length?numWord(phones.length)+' Mobile phone'+(phones.length>1?'s':''):'Nil',simCount:sims.length?numWord(sims.length)+' SIM-card'+(sims.length>1?'s':''):'Nil',
+    cntTotal:all.length?numWord(all.length):'-----',cntMobile:cnt('mobile'),cntSim:cnt('sim'),cntMc:cnt('mc'),cntPd:cnt('pd'),cntLaptop:cnt('laptop'),cntHdd:cnt('hdd'),
+    physical:'The '+joinAnd(kinds)+' marked **'+qm(marks)+'** were found to be physically undamaged and logically functional.',
+    tools:q('Forensic Workstation')+(tools.length?', '+tools.map(t=>q('**'+t+'**')).join(', '):'')+' were used for data extraction, analysis, authentication & Transfer/storage purpose.',
+    extractions:Object.entries(groups).map(([k,m])=>{const [ex,t]=k.split('|');return ex+' data was extracted from the '+(DTNAME[t]||'Exhibit')+(m.length>1?'s':'')+' marked as **'+joinAnd(m.map(q))+'**.'}),
+    result:'As per the queries of the Forwarding letter the data pertaining to the exhibits marked '+qm(marks)+' are extracted/retrieved using the above-mentioned tools/facilities and stored in their corresponding folders marked '+folders.join(' & ')+' in one '+kind+' (Availed from the available Resources of the Laboratory) marked **'+q(mk)+'** and is retained in this laboratory.',
+    encl1:numWord((D.parcels||[]).length).replace(/ \(\d+\)/,'')+' sealed parcel'+((D.parcels||[]).length>1?'s':'')+' marked '+(D.parcels||[]).map((p,pi)=>'**'+q('Parcel-'+(pi+1))+'** [Containing **'+joinAnd(all.filter(x=>x.pi===pi).map(x=>q(x.mark||'')))+'**]').join(', ')+', along with their respective Opening Parcel Cover.',
+    note4:'The extracted/retrieved data from the exhibits marked '+qm(marks)+' are retained in this laboratory. The same can be obtained from this laboratory by providing three (03) pen drives of capacity '+cap+' each.'}}
+
+async function formatBytes(name){
+  if(typeof window.CASEDESK_FORMATS==='function'){const b=await window.CASEDESK_FORMATS(name);if(b)return b;throw new Error('formats')}
+  const r=await fetch('formats/'+name+'.docx');if(!r.ok)throw new Error('formats');return r.arrayBuffer()}
+async function buildDoc(name,c){
+  const zip=await JSZip.loadAsync(await formatBytes(name));const data=docData(c);
+  for(const f of Object.keys(zip.files)){if(/^word\/(document|header\d*|footer\d*)\.xml$/.test(f))zip.file(f,fillXml(await zip.file(f).async('string'),data))}
+  return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'})}
+async function downloadDoc(name,c){
+  if(typeof JSZip==='undefined'){toast('Word export could not load');return}
+  try{const b=await buildDoc(name,c);const label=DOCS.find(d=>d[0]===name)[1].replace(/\s+/g,'_');await saveFile((c.cfsl||'case').replace(/[^A-Za-z0-9]+/g,'-')+'_'+label+'.docx',b);logAct(c.id,'Document prepared: '+DOCS.find(d=>d[0]===name)[1])}
+  catch(e){toast(e&&e.message==='formats'?'Formats are not loaded on this device yet':'Could not prepare the document')}}
+
+window.__cdDocs={buildDoc,docData};
+/* --- Documents tab in the case sheet --- */
+const openDocP=new Set();
+function tabDocs(c,body){
+  const D=c.docs||{};const setD=(patch,log)=>saveCase(c.id,{docs:Object.assign({},cases[c.id].docs||{},patch)},log);
+  const F=(box,k,l,type,ph,full)=>box.append(fieldEl(l,inp('dc-'+k,type||'text',D[k]||'',v=>setD({[k]:v.trim()||null},l+' updated'),ph),full));
+  const area=(id,val,ph,on)=>{const t=el('textarea');t.id=id;t.value=val||'';t.placeholder=ph||'';t.disabled=!canWrite;t.onchange=()=>on(t.value);return t};
+  const dl=el('div','box');dl.append(el('h2','','Prepare documents'),el('p','sub','Each button fills your Word format with this case and saves a .docx to finish and print in Word. Dates come from the Details tab.'));
+  const bt=el('div','rowbtns');DOCS.forEach(([k,l])=>{const b=el('button',k==='report'?'primary':'',l);b.type='button';b.onclick=()=>downloadDoc(k,cases[c.id]);bt.append(b)});dl.append(bt);body.append(dl);
+  const b1=el('div','box');b1.append(el('h2','','Forwarding authority and reference'));const f1=el('div','fields');
+  f1.append(fieldEl('Addressed to (one line per row)',area('dc-to',D.to,'The Head of Branch,\nCentral Bureau of Investigation, ...',v=>setD({to:v.trim()||null},'Addressee updated')),true));
+  F(f1,'memoNo','Memo / reference no.','text','e.g. 123/RC0000000A0000/CBI/City',true);F(f1,'memoDate','Memo dated','date');F(f1,'rcDate','RC / FIR dated','date');
+  F(f1,'rcNo','RC / FIR no. in full','text',c.rc||'');F(f1,'branch','Branch','text','e.g. CBI, ACB, City');
+  F(f1,'us','Under section','text','e.g. 61(2) BNS r/w 7 of PC Act 1988',true);F(f1,'through','Received through (name, rank, no.)','text','e.g. Insp. Name -000000',true);
+  F(f1,'diaryNo','CFSL diary no.','text');F(f1,'certTime','Certificate time (24 h)','time');b1.append(f1);body.append(b1);
+  const b2=el('div','box');b2.append(el('h2','','Sterile media and hash'));const f2=el('div','fields');
+  F(f2,'mediaMark','Marked in laboratory','text','e.g. PD-DATA-I');F(f2,'mediaKind','Kind of media','text','USB Pen Drive');F(f2,'mediaMake','Make and model','text','e.g. make and model');F(f2,'mediaCap','Capacity','text','e.g. 128GB');F(f2,'mediaSectors','Total sectors','text');
+  F(f2,'hash','SHA-256 hash of the media','text','',true);
+  f2.append(fieldEl('Other tools used (one per line)',area('dc-extraTools',D.extraTools,'HashMyfiles (v2.50)\nLogicube Talon-Ultimate (V. 2.0u2)',v=>setD({extraTools:v.trim()||null},'Tools updated')),true));b2.append(f2);body.append(b2);
+  // parcels and exhibits
+  const P=(D.parcels||[]);const saveP=(np,log)=>setD({parcels:np},log);const cp=()=>JSON.parse(JSON.stringify(cases[c.id].docs&&cases[c.id].docs.parcels||[]));
+  const b3=el('div','box');b3.append(el('h2','','Parcels and exhibits'),el('p','sub','Add each parcel, then the devices inside it in the order they should appear. For a SIM or memory card, enter the marking of the phone it was housed in.'));
+  P.forEach((p,pi)=>{const d=el('details','ex');d.open=openDocP.has(pi);d.ontoggle=()=>{if(d.open)openDocP.add(pi);else openDocP.delete(pi)};
+    const s=el('summary');s.append(el('span','sm','Parcel-'+(pi+1)+(p.label?' · '+p.label:'')),el('span','chip normal',(p.items||[]).length+' exhibits'));d.append(s);
+    const eb=el('div','exbody');const pf=el('div','fields');
+    const PF=(k,l,type,ph,full)=>pf.append(fieldEl(l,inp('dp-'+pi+'-'+k,type||'text',p[k]||'',v=>{const np=cp();np[pi][k]=v.trim()||null;saveP(np,'Parcel-'+(pi+1)+' updated')},ph),full));
+    PF('label','Label on the parcel','text','e.g. RC-00(A)/2026 MR 0000/2026',true);PF('colour','Colour','text','Yellow');PF('container','Container','text','paper envelope');PF('seals','Number of seals','number');PF('sealText','Seal impression reads','text','e.g. ABC 1XY');eb.append(pf);
+    (p.items||[]).forEach((it,ii)=>{const ib=el('div','copy');const id='di-'+pi+'-'+ii+'-';
+      const upd=(k,v)=>{const np=cp();np[pi].items[ii][k]=(v||'').trim()||null;saveP(np,'Exhibit '+(it.mark||'')+' updated')};
+      const hd=el('div','ct');hd.append(el('b','',(it.mark||'New exhibit')+' · '+(DTNAME[it.type]||'')));const rm=el('button','ghost','Remove');rm.type='button';rm.disabled=!canWrite;rm.onclick=()=>{const np=cp();np[pi].items.splice(ii,1);saveP(np,'Exhibit removed')};hd.append(rm);ib.append(hd);
+      const xf=el('div','fields');const X=(k,l,ph,full)=>xf.append(fieldEl(l,inp(id+k,'text',it[k]||'',v=>upd(k,v),ph),full));
+      xf.append(fieldEl('Type',sel(id+'type',DTYPES,it.type||'mobile',v=>upd('type',v))));X('mark','Marked in laboratory','e.g. M1 or M1/S1');
+      if(it.type==='sim'){X('parent','Housed in (marking)','e.g. M1');X('vendor','Vendor','e.g. Airtel 4G');X('iccid','ICCID','',true)}
+      else{if(it.type!=='mobile')X('parent','Housed in (marking)','blank if separate');X('make','Make');X('modelName','Model name');
+        if(it.type==='mobile'){X('modelNo','Model no.');X('imei1','IMEI 1');X('imei2','IMEI 2');X('locked','Locked / unlocked','UNLOCKED')}
+        X('serial','Serial no.');X('storage','Storage','e.g. 256 GB')}
+      X('extraction','Extraction','e.g. Full File System');X('tool','Extraction tool and version','e.g. UFED 4PC (Ver.7.77.0.78)');X('reportTool','Report made with','e.g. UFDR using Physical Analyzer (Ver.10.9.0.3029)',true);
+      ib.append(xf);eb.append(ib)});
+    const row=el('div','rowbtns');const ad=el('button','','+ Add exhibit');ad.type='button';ad.disabled=!canWrite;ad.onclick=()=>{const np=cp();(np[pi].items=np[pi].items||[]).push({type:'mobile'});saveP(np,'Exhibit added to Parcel-'+(pi+1))};
+    const rp=el('button','ghost','Remove parcel');rp.type='button';rp.disabled=!canWrite;rp.onclick=()=>{if(confirmDel!=='dp'+pi){confirmDel='dp'+pi;rp.textContent='Confirm: remove parcel';rp.style.color='var(--bad)';return}confirmDel=null;const np=cp();np.splice(pi,1);openDocP.delete(pi);saveP(np,'Parcel removed')};
+    row.append(ad,rp);eb.append(row);d.append(eb);b3.append(d)});
+  const ap=el('button','','+ Add parcel');ap.type='button';ap.disabled=!canWrite;ap.onclick=()=>{const np=cp();np.push({colour:'Yellow',container:'paper envelope',items:[]});openDocP.add(np.length-1);saveP(np,'Parcel added')};
+  const rb=el('div','rowbtns');rb.append(ap);b3.append(rb);body.append(b3);
+}
 
 /* ---------- connect ---------- */
 (async()=>{
