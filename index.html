@@ -1,0 +1,1364 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="robots" content="noindex,nofollow"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Case Desk"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="theme-color" content="#0d6466"></head><body>
+<title>CFSL Case Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+
+
+<style>
+/* Layout: sticky header with tab strip; each tab is a single working surface; case detail opens as a right-side sheet. Evidence-tag motif: mono case numbers, step "seal" dots. */
+:root{
+  --bg:#f3f5f6; --panel:#ffffff; --panel-2:#eef2f3; --line:#d7dee1; --fg:#14232b; --muted:#5b6b73;
+  --accent:#0d6466; --accent-soft:#d6ebea; --accent-fg:#ffffff;
+  --ok:#2f7d4f; --ok-soft:#dcefe3; --warn:#a86a00; --warn-soft:#f6ead2; --bad:#b3322b; --bad-soft:#f6dcd9;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif; --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 10px 40px rgba(10,30,40,.18);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1619; --panel:#152126; --panel-2:#1b2a30; --line:#2a3b42; --fg:#e4ecee; --muted:#93a5ac;
+  --accent:#4fb8b4; --accent-soft:#163b3c; --accent-fg:#06201f;
+  --ok:#6cc58f; --ok-soft:#173326; --warn:#e2a948; --warn-soft:#3a2c12; --bad:#ee7b72; --bad-soft:#3d1c1a; --shadow:0 10px 40px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1619; --panel:#152126; --panel-2:#1b2a30; --line:#2a3b42; --fg:#e4ecee; --muted:#93a5ac;
+  --accent:#4fb8b4; --accent-soft:#163b3c; --accent-fg:#06201f;
+  --ok:#6cc58f; --ok-soft:#173326; --warn:#e2a948; --warn-soft:#3a2c12; --bad:#ee7b72; --bad-soft:#3d1c1a; --shadow:0 10px 40px rgba(0,0,0,.5); color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1320px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.hrow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:14px 8px}
+.brand{display:flex;flex-direction:column;min-width:0;flex:1}
+.brand h1{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.brand small{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.today{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs a{font-family:var(--f-display);font-weight:600;font-size:14px;color:var(--muted);text-decoration:none;padding:10px 14px;border-bottom:3px solid transparent;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.tabs a[aria-current="page"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{font-family:var(--f-mono);font-size:11px;background:var(--panel-2);border-radius:10px;padding:1px 7px;color:var(--muted)}
+.count.hot{background:var(--bad-soft);color:var(--bad)}
+main{padding-block:20px 60px;display:block}
+section.view{display:flex;flex-direction:column;gap:20px}
+h2{font-family:var(--f-display);font-weight:700;font-size:17px;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.grid2{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+@media (max-width:1000px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.kpi:hover{border-color:var(--accent)}
+.kpi .n{font-family:var(--f-display);font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .l{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.kpi.bad .n{color:var(--bad)} .kpi.warn .n{color:var(--warn)} .kpi.ok .n{color:var(--ok)}
+.sechead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+button,.btn{font:inherit;font-size:13px;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:7px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--fg)}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-width:0}
+textarea{width:100%;resize:vertical;min-height:60px;box-sizing:border-box}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap;letter-spacing:.02em}
+.chip.high{background:var(--bad-soft);color:var(--bad)} .chip.normal{background:var(--panel-2);color:var(--muted)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.info{background:var(--accent-soft);color:var(--accent)}
+/* pipeline diagram */
+.pipe{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:4px}
+.pipe-wrap{overflow-x:auto}
+.pipe-inner{min-width:760px}
+.stage{display:flex;flex-direction:column;gap:6px;cursor:pointer;background:none;border:none;padding:0;text-align:left;color:inherit;font:inherit}
+.stage .bar{height:64px;background:var(--panel-2);border-radius:6px;position:relative;overflow:hidden;display:flex;align-items:flex-end}
+.stage .fill{width:100%;background:var(--accent);border-radius:6px 6px 0 0;transition:height .3s}
+.stage.hi .fill{background:var(--warn)}
+.stage .num{font-family:var(--f-display);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+.stage .nm{font-size:11.5px;color:var(--muted);line-height:1.2}
+.stage .ix{font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+.stage:hover .nm{color:var(--fg)}
+/* table */
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;font-weight:600;padding:10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel-2);cursor:pointer;user-select:none}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr{cursor:pointer} tbody tr:hover{background:var(--panel-2)}
+tbody tr:last-child td{border-bottom:none}
+td.num{font-variant-numeric:tabular-nums;text-align:right}
+.seals{display:flex;gap:3px;align-items:center}
+.seal{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line);box-sizing:border-box}
+.seal.on{background:var(--accent);border-color:var(--accent)}
+.seal.cur{border-color:var(--warn);background:var(--warn-soft)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters input[type=search]{flex:1;min-width:180px}
+/* list rows */
+.list{display:flex;flex-direction:column}
+.li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line)}
+.li:last-child{border-bottom:none}
+.li .t{min-width:0}
+.li .t b{font-weight:600;display:block;overflow-wrap:anywhere}
+.li .t span{font-size:12px;color:var(--muted)}
+.stripe{width:4px;align-self:stretch;border-radius:2px;background:var(--line)}
+.stripe.bad{background:var(--bad)} .stripe.warn{background:var(--warn)} .stripe.ok{background:var(--ok)} .stripe.info{background:var(--accent)}
+.empty{padding:22px 8px;color:var(--muted);text-align:center;font-size:13px}
+/* kanban */
+.board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:12px;overflow-x:auto;padding-bottom:6px}
+.col{background:var(--panel-2);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.col h3{font-family:var(--f-display);font-size:14px;margin:2px 4px 4px;display:flex;justify-content:space-between}
+.col .hint{font-size:11.5px;color:var(--muted);margin:-4px 4px 4px}
+.kc{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 10px;cursor:pointer;display:flex;flex-direction:column;gap:5px;text-align:left;font:inherit;color:inherit;width:100%}
+.kc:hover{border-color:var(--accent)}
+.kc .r1{display:flex;justify-content:space-between;gap:6px;align-items:center}
+.kc .cf{font-family:var(--f-mono);font-size:11.5px;overflow-wrap:anywhere}
+.kc .nx{font-size:12px;color:var(--muted)}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(5,15,20,.45);z-index:20}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--panel);z-index:21;box-shadow:var(--shadow);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.sheet .sh{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+.sheet .sh .ttl{flex:1;min-width:0}
+.sheet .sh .ttl .mono{font-size:13.5px;font-weight:500;overflow-wrap:anywhere}
+.sheet .sb{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:18px}
+.flow{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.flow li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;position:relative}
+.flow li::before{content:"";position:absolute;left:13px;top:26px;bottom:-2px;width:2px;background:var(--line)}
+.flow li:last-child::before{display:none}
+.flow li.done::before{background:var(--accent)}
+.flow input[type=checkbox]{appearance:none;width:24px;height:24px;margin:2px 0 0;border:2px solid var(--line);border-radius:50%;background:var(--panel);cursor:pointer;position:relative;z-index:1;padding:0}
+.flow input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+.flow input[type=checkbox]:checked::after{content:"";position:absolute;left:7px;top:3px;width:5px;height:10px;border:solid var(--accent-fg);border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+.flow li.next input[type=checkbox]{border-color:var(--warn)}
+.flow label{display:flex;flex-direction:column;padding:2px 0 14px;cursor:pointer}
+.flow label b{font-weight:600;font-size:13.5px}
+.flow label span{font-size:12px;color:var(--muted)}
+.flow li.next label b::after{content:"Next";margin-left:8px;font-size:10.5px;font-weight:600;color:var(--warn);background:var(--warn-soft);border-radius:999px;padding:1px 7px;vertical-align:1px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fields label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fields label.full{grid-column:1/-1}
+.fields input,.fields select{width:100%;box-sizing:border-box}
+.meta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;font-size:13px}
+.meta dt{color:var(--muted)} .meta dd{margin:0;overflow-wrap:anywhere}
+.prog{height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent)}
+/* heatmap */
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);gap:3px;overflow-x:auto;padding-bottom:4px}
+.heat i{width:14px;height:14px;border-radius:3px;background:var(--panel-2)}
+.heat i.l1{background:color-mix(in srgb,var(--accent) 30%,var(--panel-2))}
+.heat i.l2{background:color-mix(in srgb,var(--accent) 60%,var(--panel-2))}
+.heat i.l3{background:var(--accent)}
+.heat i.td{outline:1.5px solid var(--fg);outline-offset:-1px}
+.agebars{display:flex;flex-direction:column;gap:8px}
+.agebar{display:grid;grid-template-columns:96px minmax(0,1fr) 34px;gap:10px;align-items:center;font-size:12.5px;cursor:pointer;background:none;border:none;padding:0;color:inherit;font:inherit;text-align:left}
+.agebar .tr{height:14px;background:var(--panel-2);border-radius:3px;overflow:hidden}
+.agebar .tr i{display:block;height:100%}
+.agebar .v{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.toast{position:fixed;left:50%;bottom:calc(72px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;z-index:30}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:13px}
+.addrow{display:flex;gap:8px;flex-wrap:wrap}
+.addrow input[type=text]{flex:1;min-width:180px}
+.hrow .brand{flex:1 1 300px}
+/* save controls */
+.savectl{display:flex;gap:8px;align-items:center}
+.autosw{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+.autosw input{appearance:none;width:30px;height:18px;border-radius:9px;background:var(--line);position:relative;cursor:pointer;margin:0;padding:0;border:none;transition:background .15s}
+.autosw input::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--panel);transition:left .15s}
+.autosw input:checked{background:var(--accent)}
+.autosw input:checked::after{left:14px}
+#btnSave.dirty{background:var(--warn);border-color:var(--warn);color:#fff}
+.savebar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--fg);color:var(--bg);border-radius:10px;padding:8px 8px 8px 16px;display:flex;gap:8px;align-items:center;box-shadow:var(--shadow);font-size:13px;max-width:calc(100% - 32px)}
+.savebar .ghost{color:var(--bg);opacity:.8}
+.sheet .sb{padding-bottom:80px}
+.toolrow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:6px;align-items:center}
+.toolsec{display:flex;flex-direction:column;gap:6px}
+.toolsec>.lab{font-size:12.5px;font-weight:600;color:var(--fg)}
+/* sheet sub-tabs, exhibits, copies */
+.stabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+.stabs button{border:none;background:none;border-radius:0;padding:10px 8px;border-bottom:2px solid transparent;color:var(--muted);font-family:var(--f-display);font-weight:600;font-size:13.5px;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.stabs button.on{color:var(--fg);border-bottom-color:var(--accent)}
+.typegrid,.chain{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.tchip{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px;cursor:pointer;background:var(--panel);min-width:0}
+.tchip input{accent-color:var(--accent);margin:0;flex-shrink:0}
+.tchip:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.tchip small{display:block;color:var(--muted);font-size:11px;line-height:1.25}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--panel-2);border-radius:8px;padding:8px 10px;min-width:0}
+.stat b{font-family:var(--f-display);font-size:18px;display:block;font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+details.ex{border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.ex>summary{list-style:none;cursor:pointer;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+details.ex>summary::-webkit-details-marker{display:none}
+details.ex>summary::before{content:"▸";color:var(--muted);font-size:12px}
+details.ex[open]>summary::before{content:"▾"}
+details.ex[open]>summary{border-bottom:1px solid var(--line)}
+details.ex .sm{flex:1;min-width:0;font-weight:600;font-size:13px;overflow-wrap:anywhere}
+.exbody{padding:12px;display:flex;flex-direction:column;gap:12px}
+.minihead{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin:0}
+.copy{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.copy .ct{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.copy .ct b{font-family:var(--f-display);font-size:14px}
+.reco{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:13px}
+.reco b{font-family:var(--f-display)}
+.box{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.typebars{display:flex;flex-direction:column;gap:6px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="hrow">
+      <div class="brand"><small>Case Desk · Cyber Forensics Division, CFSL Delhi</small><h1>Alpha's Dashboard</h1></div>
+      <span class="today" id="todayLbl"></span>
+      <div class="savectl"><label class="autosw" for="autoSave"><input type="checkbox" id="autoSave" role="switch"><span>Autosave</span></label><button id="btnSave" title="Save changes (Ctrl+S)">Save</button></div>
+      <button class="primary" id="btnAdd">+ New case</button>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a href="#overview" data-tab="overview">Overview</a>
+      <a href="#cases" data-tab="cases">Cases <span class="count" id="tcCases">—</span></a>
+      <a href="#flow" data-tab="flow">Process flow</a>
+      <a href="#courts" data-tab="courts">Courts <span class="count" id="tcCrt">—</span></a>
+      <a href="#scenes" data-tab="scenes">Crime scene <span class="count" id="tcScn">—</span></a>
+      <a href="#reminders" data-tab="reminders">Reminders <span class="count" id="tcRem">—</span></a>
+      <a href="#deadlines" data-tab="deadlines">Deadlines <span class="count" id="tcDl">—</span></a>
+      <a href="#activity" data-tab="activity">My activity</a>
+      <a href="#reports" data-tab="reports">Reports</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="dbBanner" hidden></div>
+
+  <!-- OVERVIEW -->
+  <section class="view" id="v-overview">
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <div class="sechead"><div><h2>Where open cases are sitting</h2><p class="sub">Open cases by their next pending step. Select a step to see its cases.</p></div></div>
+      <div class="pipe-wrap"><div class="pipe-inner"><div class="pipe" id="pipe"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="sechead"><div><h2>Exhibits and storage</h2><p class="sub">Devices logged across all cases, their storage and the data to be handed over</p></div></div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="stats" id="exStats"></div>
+        <div class="typebars agebars" id="exTypes"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="sechead"><div><h2>Needs attention</h2><p class="sub">High priority, overdue, or pending over a year</p></div></div>
+        <div class="list" id="attn"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+        <div class="card">
+          <div class="sechead"><div><h2>Pendency since receipt</h2><p class="sub">Open cases, days since parcels were received</p></div></div>
+          <div class="agebars" id="ages"></div>
+        </div>
+        <div class="card">
+          <div class="sechead"><div><h2>Due soon</h2><p class="sub">Reminders and deadlines in the next 7 days</p></div><a class="btn" href="#reminders" style="text-decoration:none">All reminders</a></div>
+          <div class="list" id="dueSoon"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CASES -->
+  <section class="view" id="v-cases" hidden>
+    <div class="filters">
+      <input type="search" id="q" placeholder="Search CFSL no., RC/FIR, remarks">
+      <select id="fStatus"><option value="open">Open cases</option><option value="all">All cases</option><option value="awaiting">Reported, awaiting collection</option><option value="done">Completed</option></select>
+      <select id="fStage"><option value="">Any next step</option></select>
+      <select id="fPri"><option value="">Any priority</option><option value="high">High priority</option><option value="normal">Normal</option></select>
+      <select id="fOff"><option value="">Any officer</option><option value="jiju">Dr. Jiju PV</option><option value="rana">Sh. RS Rana</option><option value="none">Not assigned</option></select>
+      <select id="fDev"><option value="">Any device details</option><option value="missing">Device details missing</option><option value="has">Device details added</option></select>
+      <button class="ghost" id="fClear">Clear</button>
+    </div>
+    <div class="tablebox">
+      <table>
+        <thead><tr>
+          <th data-sort="sno">S.No</th><th data-sort="cfsl">CFSL No.</th><th data-sort="rc">RC / FIR</th><th data-sort="officer">Officer</th><th data-sort="parcels" style="text-align:right">Parcels</th>
+          <th data-sort="received">Received</th><th data-sort="age" style="text-align:right">Days</th><th data-sort="stage">Progress · next step</th><th data-sort="devices">Devices</th><th data-sort="priority">Priority</th><th data-sort="deadline">Deadline</th>
+        </tr></thead>
+        <tbody id="caseRows"></tbody>
+      </table>
+    </div>
+    <p class="sub" id="caseFoot"></p>
+  </section>
+
+  <!-- FLOW -->
+  <section class="view" id="v-flow" hidden>
+    <div><h2>Process flow, receipt to collection</h2><p class="sub">Thirteen steps every case passes through. Open a card to tick off its checklist; it moves to the next column on its own.</p></div>
+    <div class="board" id="board"></div>
+    <div class="card">
+      <div class="sechead"><div><h2>Evidence chain</h2><p class="sub">Each exhibit is hashed, cloned, extracted and analysed, and its hash is verified. The extracted data then goes onto one master, which is cloned to three copies. Numbers show items waiting at each point.</p></div></div>
+      <div class="pipe-wrap"><div class="pipe-inner"><div class="pipe" id="chainPipe" style="grid-template-columns:repeat(9,minmax(0,1fr))"></div></div></div>
+    </div>
+  </section>
+
+  <!-- COURTS -->
+  <section class="view" id="v-courts" hidden>
+    <div class="sechead" style="margin:0"><div><h2>Courts to attend</h2><p class="sub">Summons for evidence, deposition or cross-examination. Dates within 7 days also show on the Overview.</p></div><button class="primary" id="crtAdd">+ Add court date</button></div>
+    <div class="card"><div class="sechead"><h2>Upcoming</h2></div><div class="list" id="crtUp"></div></div>
+    <div class="card"><div class="sechead"><h2>Attended</h2></div><div class="list" id="crtPast"></div></div>
+  </section>
+
+  <!-- CRIME SCENE -->
+  <section class="view" id="v-scenes" hidden>
+    <div class="sechead" style="margin:0"><div><h2>Crime scene visits</h2><p class="sub">Each visit is linked to its case, with the team members who attended.</p></div><div class="rowbtns"><select id="scnFilter" aria-label="Status"><option value="">All visits</option><option value="planned">Planned</option><option value="visited">Visited</option><option value="report">Report submitted</option></select><button class="primary" id="scnAdd">+ Add visit</button></div></div>
+    <div class="card"><div class="list" id="scnList"></div></div>
+  </section>
+
+  <!-- REMINDERS -->
+  <section class="view" id="v-reminders" hidden>
+    <div class="card">
+      <div class="sechead"><div><h2>Add a reminder</h2><p class="sub">Link it to a case if it belongs to one</p></div></div>
+      <form class="addrow" id="remForm">
+        <input type="text" id="remText" placeholder="e.g. Call IO for collection of report" required>
+        <input type="date" id="remDue" required>
+        <select id="remCase"><option value="">No case</option></select>
+        <select id="remPri"><option value="normal">Normal</option><option value="high">High</option></select>
+        <button class="primary" type="submit">Add</button>
+      </form>
+    </div>
+    <div class="card"><div class="sechead"><h2>Open reminders</h2><select id="remShow"><option value="open">Open</option><option value="done">Done</option><option value="all">All</option></select></div><div class="list" id="remList"></div></div>
+  </section>
+
+  <!-- DEADLINES -->
+  <section class="view" id="v-deadlines" hidden>
+    <div class="grid2">
+      <div class="card">
+        <div class="sechead"><div><h2>Case deadlines</h2><p class="sub">Every open case with a target date, soonest first</p></div></div>
+        <div class="list" id="dlList"></div>
+      </div>
+      <div class="card">
+        <div class="sechead"><div><h2>No deadline set</h2><p class="sub">Open cases without a target date, oldest first. Pick a date to set one.</p></div>
+          <div class="addrow"><select id="bulkDays"><option value="15">+15 days</option><option value="30" selected>+30 days</option><option value="60">+60 days</option></select><button id="bulkHigh">Set for high priority</button></div></div>
+        <div class="list" id="noDl"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section class="view" id="v-activity" hidden>
+    <div class="kpis" id="actKpis"></div>
+    <div class="card">
+      <div class="sechead"><div><h2>Last 16 weeks</h2><p class="sub">Checklist steps and updates you logged each day</p></div></div>
+      <div class="heat" id="heat"></div>
+    </div>
+    <div class="card">
+      <div class="sechead"><div><h2>Activity log</h2><p class="sub">Most recent first</p></div></div>
+      <div class="list" id="actList"></div>
+    </div>
+  </section>
+  <!-- REPORTS -->
+  <section class="view" id="v-reports" hidden>
+    <div class="card">
+      <div class="sechead"><div><h2>Prepare a report</h2><p class="sub">Weekly reports run Monday to Sunday; monthly reports start on the 1st. The PDF carries the CFSL letterhead and is signed off by Abhishek Singh, Senior Digital Forensic Expert.</p></div></div>
+      <div class="filters">
+        <select id="rpType" aria-label="Report type"><option value="weekly">Weekly report</option><option value="monthly">Monthly report</option></select>
+        <select id="rpPeriod" aria-label="Period"></select>
+        <select id="rpOff" aria-label="Reporting officer"><option value="">All reporting officers</option><option value="jiju">Dr. Jiju PV</option><option value="rana">Sh. RS Rana</option><option value="none">Not assigned</option></select>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="sechead"><div><h2>Summary for this period</h2><p class="sub">These figures go into the PDF</p></div></div>
+        <div class="list" id="rpSummary"></div>
+        <div class="stats" id="rpCounts" style="margin-top:14px;grid-template-columns:repeat(5,minmax(0,1fr))"></div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;gap:10px">
+        <div><h2>Research &amp; Development</h2><p class="sub" id="rpRndHint"></p></div>
+        <textarea id="rpRnd" rows="9" style="min-height:180px" placeholder="e.g. Validation of UFED 7.x extraction on Android 14 devices; study on recovery of deleted WhatsApp data; training delivered to IOs on digital evidence handling."></textarea>
+        <span class="savebadge" id="rpRndSaved"></span>
+        <div class="rowbtns"><button id="rpDownload">Download PDF</button><button class="primary" id="rpPublish">Publish report</button></div>
+        <p class="sub" id="rpPubNote"></p>
+        <p class="sub">Publishing saves this report to the history below and downloads the PDF.</p>
+      </div>
+    </div>
+    <div class="card"><div class="sechead"><div><h2>Published reports</h2><p class="sub">Each PDF is regenerated exactly as it was published</p></div></div><div class="list" id="rpHistory"></div></div>
+  </section>
+</main>
+<div class="savebar" id="saveBar" hidden><span id="saveBarTxt"></span><button class="ghost" id="saveBarDiscard">Discard</button><button class="primary" id="saveBarSave">Save changes</button></div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="sheet" id="sheet" hidden aria-modal="true" role="dialog" aria-labelledby="shTitle"></aside>
+<div class="toast" id="toast" hidden></div>
+
+<script src="shim.js"></script><script src="jspdf.umd.min.js"></script>
+<script src="jspdf.plugin.autotable.min.js"></script>
+<script>
+(function(){
+const STEPS=[
+ {k:'received',l:'Parcels received',d:'Entered in case register; seals checked against forwarding letter'},
+ {k:'opened',l:'Parcels opened',d:'Seals verified, exhibits photographed and marked'},
+ {k:'cd',l:'Case opening CD',d:'Opening proceedings recorded to CD'},
+ {k:'cloning',l:'Cloning / imaging',d:'Exhibits imaged, hash values recorded'},
+ {k:'analysis',l:'Examination',d:'Analysis of extracted data'},
+ {k:'worksheet',l:'Worksheet',d:'Worksheet completed with findings'},
+ {k:'report',l:'Report drafted',d:'Examination report prepared'},
+ {k:'pages',l:'Page numbering',d:'Report and annexures paginated'},
+ {k:'sign',l:'Sign & SDFE stamp',d:'Signed and stamped by the examiner'},
+ {k:'seal',l:'Sample seal / reseal',d:'Exhibits resealed with sample seal'},
+ {k:'copies',l:'Final data copies',d:"Master cloned to 3 copies: IO, Hon'ble Court, Lab"},
+ {k:'dispatched',l:'Report finalised',d:'Date of reporting entered'},
+ {k:'collected',l:'Collected',d:'Report and exhibits collected by IO or sent to court'}
+];
+const SHORT={received:'Receipt',opened:'Opening',cd:'Opening CD',cloning:'Cloning',analysis:'Examination',worksheet:'Worksheet',report:'Report draft',pages:'Page no.',sign:'Sign/stamp',seal:'Sample seal',copies:'Data copies',dispatched:'Finalise',collected:'Collection'};
+const COLS=[
+ {id:'intake',l:'Intake',h:'Received, waiting to be opened',ks:['received','opened']},
+ {id:'lab',l:'Lab work',h:'Opening CD, cloning, examination, worksheet',ks:['cd','cloning','analysis','worksheet']},
+ {id:'rep',l:'Reporting',h:'Draft, page numbering, sign, seal, data copies',ks:['report','pages','sign','seal','copies','dispatched']},
+ {id:'await',l:'Awaiting collection',h:'Report finalised, not yet collected',ks:['collected']},
+ {id:'done',l:'Completed',h:'Collected',ks:['__done']}
+];
+const $=s=>document.querySelector(s);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const DAY=864e5;
+const todayISO=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
+const parse=s=>s?new Date(s+'T00:00:00'):null;
+const daysBetween=(a,b)=>Math.round((parse(b)-parse(a))/DAY);
+const fmt=s=>{if(!s)return '—';const d=parse(s);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})};
+const addDays=(iso,n)=>{const d=parse(iso);d.setDate(d.getDate()+n);return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
+
+let db=null,user=null,uid=null,canWrite=true;
+let cases={}, reminders={}, actDays={};
+let loaded={cases:false,rem:false,act:false};
+let openCase=null, sort={k:'sno',dir:1};
+
+$('#todayLbl').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+
+const EXTYPES=[['mobile','Mobile phone'],['sim','SIM card'],['laptop','Laptop'],['desktop','Desktop / CPU'],['hdd','Hard disk (HDD)'],['ssd','SSD'],['pen','Pen drive'],['mem','Memory card'],['optical','CD / DVD'],['dvr','CCTV DVR / NVR'],['tablet','Tablet / iPad'],['watch','Smartwatch'],['camera','Digital camera'],['network','Router / network device'],['cloud','Cloud / e-mail account'],['other','Other']];
+const TYPE=Object.fromEntries(EXTYPES);
+const OFFICERS=[['jiju','Dr. Jiju PV'],['rana','Sh. RS Rana']];const OFF=Object.fromEntries(OFFICERS);
+const CHAIN=[
+ {k:'hash',l:'Hashing',d:'Write-blocked, acquisition hash'},
+ {k:'clone',l:'Cloning / imaging',d:'Forensic image created'},
+ {k:'extract',l:'Extraction',d:'Data extracted with tool'},
+ {k:'analyse',l:'Analysis',d:'Relevant data identified'},
+ {k:'toolrep',l:'Tool report',d:'Report generated from tool'},
+ {k:'verify',l:'Hash verified',d:'Image hash matches source'}];
+function chainLabel(type,k){const m=CHAIN.find(x=>x.k===k);if(type==='mobile'||type==='tablet'){if(k==='clone')return['Extraction image','Physical / file-system dump (UFED)'];if(k==='extract')return['Extraction','UFED 4PC / Physical Analyzer'];if(k==='toolrep')return['UFED report','UFED Reader report generated']}if(type==='sim'&&k==='clone')return['SIM read','ICCID, IMSI, contacts, SMS'];if(type==='dvr'&&k==='extract')return['Footage extraction','DVR Examiner / native export'];return[m.l,m.d]}
+const TOOLS=['Cellebrite UFED 4PC','Cellebrite UFED Touch','Cellebrite Premium','Cellebrite Inseyets','Cellebrite Reader','Magnet AXIOM Cyber','Magnet GrayKey','MOBILedit Forensic','Elcomsoft iOS Forensic Toolkit','Oxygen Forensic Detective (Extractor)','Tableau TX1','Arsenal Image Mounter','Cellebrite Physical Analyzer','UFED Reader','Oxygen Forensic Detective','MSAB XRY','Magnet AXIOM','FTK Imager','EnCase Forensic','X-Ways Forensics','Autopsy','Belkasoft X','Tableau write-blocker','Guymager','DVR Examiner','Passware Kit'];
+const COPIES=[['io','IO copy','Handed to Investigating Officer'],['court',"Hon'ble Court copy",'Sent to the court with the report'],['lab','Lab copy','Retained in the laboratory']];
+const MEDIA=[[4.3,'DVD-R 4.7 GB'],[7.9,'DVD-R DL 8.5 GB'],[14.5,'16 GB pen drive'],[29,'32 GB pen drive'],[58,'64 GB pen drive'],[116,'128 GB pen drive'],[232,'256 GB pen drive'],[465,'500 GB hard disk'],[931,'1 TB hard disk'],[1862,'2 TB hard disk'],[3725,'4 TB hard disk'],[7450,'8 TB hard disk']];
+function recommend(gb){if(!gb||gb<=0)return null;for(const m of MEDIA)if(gb<=m[0])return m[1];return Math.ceil(gb/7450)+' × 8 TB hard disks'}
+const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
+function fmtGB(gb){if(!gb)return '0 GB';return gb>=1000?(gb/1000).toFixed(gb>=10000?1:2)+' TB':(Math.round(gb*10)/10)+' GB'}
+const exList=c=>Array.isArray(c.exhibitList)?c.exhibitList:[];
+const exDone=x=>CHAIN.filter(s=>(x.chain||{})[s.k]).length;
+const exNext=x=>{for(const s of CHAIN)if(!(x.chain||{})[s.k])return s.k;return null};
+function exTotals(c){const L=exList(c);return{n:L.length,cap:L.reduce((a,x)=>a+num(x.cap),0),an:L.reduce((a,x)=>a+num(x.analysed),0),del:L.reduce((a,x)=>a+num(x.deliver),0)}}
+function deliverGB(c){const f=c.final||{};return f.dataGB!=null&&f.dataGB!==''?num(f.dataGB):exTotals(c).del}
+function copyReady(cp){return !!(cp&&cp.cloned&&cp.verified&&cp.sealed)}
+function copiesState(c){const cp=(c.final||{}).copies||{};return COPIES.filter(([k])=>copyReady(cp[k])).length}
+function caseTypes(c){const s=new Set(c.exhibitTypes||[]);exList(c).forEach(x=>x.type&&s.add(x.type));return [...s]}
+
+/* ---------- derived ---------- */
+function stepDone(c,k){const s=c.steps||{};if(k==='copies'&&s.copies===undefined)return !!s.dispatched;return !!s[k]}
+function nextStep(c){for(const st of STEPS){if(!stepDone(c,st.k))return st.k}return null}
+function doneCount(c){return STEPS.filter(x=>stepDone(c,x.k)).length}
+function status(c){const s=c.steps||{};if(s.collected)return 'done';if(s.dispatched)return 'awaiting';return 'open'}
+function age(c){return c.received?daysBetween(c.received,todayISO()):null}
+function dlState(iso){if(!iso)return null;const d=daysBetween(todayISO(),iso);if(d<0)return 'bad';if(d<=7)return 'warn';return 'ok'}
+function dlLabel(iso){if(!iso)return '';const d=daysBetween(todayISO(),iso);if(d<0)return (-d)+' d overdue';if(d===0)return 'Due today';return 'in '+d+' d'}
+function colOf(c){if(status(c)==='done')return 'done';const n=nextStep(c);return COLS.find(x=>x.ks.includes(n)).id}
+const list=()=>Object.values(cases);
+const openList=()=>list().filter(c=>status(c)!=='done');
+
+/* ---------- writes ---------- */
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2200)}
+let autosave=true;try{autosave=localStorage.getItem('casedesk-autosave')!=='0'}catch(e){}
+let pending={},pendingBase={},pendingLogs=[];
+function pendingCount(){return pendingLogs.length||Object.keys(pending).length}
+function updateSaveUI(){
+  const n=pendingCount(),nc=Object.keys(pending).length;
+  const b=$('#btnSave');b.textContent=n?'Save ('+n+')':'Save';b.classList.toggle('dirty',!!n);
+  $('#autoSave').checked=autosave;
+  const bar=$('#saveBar');bar.hidden=!nc;if(nc)$('#saveBarTxt').textContent=n+' unsaved change'+(n>1?'s':'')+(nc>1?' in '+nc+' cases':'');
+}
+function flushField(){const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.id&&!/^(q|autoSave)$/.test(a.id)){a.blur()}}
+async function saveAll(quiet){
+  flushField();
+  const ids=Object.keys(pending);
+  if(!ids.length){if(!quiet)toast(autosave?'All changes are saved':'Nothing to save');return true}
+  if(!db){toast('Saving is unavailable in this view');return false}
+  const now=new Date().toISOString();const logs=pendingLogs.slice();
+  try{
+    for(const id of ids){await db.doc('cases/'+id).update(Object.assign({},pending[id],{updatedAt:now}));cases[id]=Object.assign({},cases[id],{updatedAt:now});delete pending[id];delete pendingBase[id]}
+    pendingLogs=[];logs.forEach(([id,t])=>logAct(id,t));
+    toast('Saved '+(logs.length||ids.length)+' change'+((logs.length||ids.length)>1?'s':''));updateSaveUI();renderAll();return true
+  }catch(e){handleErr(e);updateSaveUI();return false}
+}
+function discardAll(){Object.entries(pendingBase).forEach(([id,c])=>{cases[id]=c});pending={};pendingBase={};pendingLogs=[];updateSaveUI();renderAll();toast('Changes discarded')}
+async function saveCase(id,patch,logText){
+  if(!db){toast('Saving is unavailable in this view');return}
+  if(!autosave){
+    if(!pendingBase[id])pendingBase[id]=JSON.parse(JSON.stringify(cases[id]));
+    pending[id]=Object.assign({},pending[id],JSON.parse(JSON.stringify(patch)));
+    cases[id]=Object.assign({},cases[id],patch);
+    if(logText)pendingLogs.push([id,logText]);
+    renderAll();updateSaveUI();return;
+  }
+  const before=cases[id];
+  cases[id]=Object.assign({},before,patch,{updatedAt:new Date().toISOString()});
+  renderAll();
+  try{await db.doc('cases/'+id).update(Object.assign({},patch,{updatedAt:cases[id].updatedAt}));
+    if(logText)logAct(id,logText);
+  }catch(e){cases[id]=before;renderAll();handleErr(e)}
+}
+function handleErr(e){
+  if(e&&e.code==='invalid_argument'){canWrite=false;toast('You can view this desk but not change it')}
+  else if(e&&e.code==='quota_exceeded')toast('Storage is full: '+e.message);
+  else toast('Could not save. Try again.')
+}
+let actQueue=Promise.resolve();
+function logAct(caseId,text){
+  if(!db)return;
+  const day=todayISO(), c=cases[caseId];
+  actQueue=actQueue.then(async()=>{
+    const cur=actDays[day]?.entries||[];
+    const entries=cur.concat([{t:new Date().toISOString(),caseId:caseId||null,cfsl:c?c.cfsl:null,text}]).slice(-400);
+    actDays[day]={entries};renderActivity();
+    try{await db.doc('activity/'+day).set({entries})}catch(e){}
+  });
+}
+
+/* ---------- KPIs / overview ---------- */
+function kpi(n,l,cls,go){const b=el('button','kpi'+(cls?' '+cls:''));b.append(el('span','n',String(n)),el('span','l',l));b.onclick=go;return b}
+function renderOverview(){
+  const all=list(), open=all.filter(c=>status(c)==='open'), awaiting=all.filter(c=>status(c)==='awaiting'), done=all.filter(c=>status(c)==='done');
+  const hp=all.filter(c=>status(c)!=='done'&&c.priority==='high');
+  const od=all.filter(c=>status(c)!=='done'&&dlState(c.deadline)==='bad');
+  const k=$('#kpis');k.replaceChildren();
+  if(!loaded.cases){for(const l of ['Total cases','In examination','Awaiting collection','Completed','High priority','Overdue'])k.append(kpi('—',l));}
+  else k.append(
+    kpi(all.length,'Total cases','',()=>gotoCases({status:'all'})),
+    kpi(open.length,'In examination','',()=>gotoCases({status:'open'})),
+    kpi(awaiting.length,'Awaiting collection','warn',()=>gotoCases({status:'awaiting'})),
+    kpi(done.length,'Completed','ok',()=>gotoCases({status:'done'})),
+    kpi(hp.length,'High priority open','bad',()=>gotoCases({status:'all',pri:'high'})),
+    kpi(od.length,'Overdue deadlines',od.length?'bad':'',()=>location.hash='#deadlines'));
+  // pipeline
+  const p=$('#pipe');p.replaceChildren();
+  const counts={};STEPS.forEach(s=>counts[s.k]=0);
+  all.forEach(c=>{const n=nextStep(c);if(n)counts[n]++});
+  const max=Math.max(1,...Object.values(counts));
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  STEPS.forEach((s,i)=>{
+    const b=el('button','stage'+(top&&top[0]===s.k&&top[1]>0?' hi':''));b.title=s.l;
+    const bar=el('div','bar');const f=el('div','fill');f.style.height=(counts[s.k]/max*100)+'%';bar.append(f);
+    b.append(el('span','ix',String(i+1).padStart(2,'0')),bar,el('span','num',loaded.cases?String(counts[s.k]):'—'),el('span','nm',SHORT[s.k]));
+    b.onclick=()=>gotoCases({status:'all',stage:s.k});p.append(b)});
+  // attention
+  const a=$('#attn');a.replaceChildren();
+  const att=all.filter(c=>status(c)!=='done').map(c=>{let score=0,why=[];
+      if(dlState(c.deadline)==='bad'){score+=3;why.push(dlLabel(c.deadline))}
+      if(c.priority==='high'){score+=2;why.push('High priority')}
+      const ag=age(c);if(ag>365){score+=1;why.push(ag+' days since receipt')}
+      if(dlState(c.deadline)==='warn'){score+=1;why.push('Deadline '+dlLabel(c.deadline))}
+      return {c,score,why}}).filter(x=>x.score>0).sort((x,y)=>y.score-x.score||age(y.c)-age(x.c)).slice(0,10);
+  if(!loaded.cases)a.append(el('div','empty','Loading cases…'));
+  else if(!att.length)a.append(el('div','empty','Nothing urgent. No high-priority or overdue cases.'));
+  att.forEach(x=>a.append(caseLine(x.c,x.why.join(' · '),x.c.priority==='high'||dlState(x.c.deadline)==='bad'?'bad':'warn')));
+  // ages
+  const g=$('#ages');g.replaceChildren();
+  const bands=[['Under 90 days',0,89,'var(--ok)'],['90–180 days',90,180,'var(--accent)'],['181–365 days',181,365,'var(--warn)'],['Over a year',366,1e9,'var(--bad)']];
+  const ol=all.filter(c=>status(c)==='open');const bc=bands.map(b=>ol.filter(c=>{const x=age(c);return x!=null&&x>=b[1]&&x<=b[2]}).length);
+  const bm=Math.max(1,...bc);
+  bands.forEach((b,i)=>{const r=el('button','agebar');const tr=el('div','tr');const f=el('i');f.style.width=(bc[i]/bm*100)+'%';f.style.background=b[3];tr.append(f);
+    r.append(el('span','',b[0]),tr,el('span','v',loaded.cases?String(bc[i]):'—'));r.onclick=()=>gotoCases({status:'open',ageMin:b[1],ageMax:b[2],ageLbl:b[0]});g.append(r)});
+  // due soon
+  const ds=$('#dueSoon');ds.replaceChildren();
+  const items=dueItems().filter(x=>daysBetween(todayISO(),x.due)<=7).slice(0,8);
+  if(!items.length)ds.append(el('div','empty','Nothing due in the next 7 days.'));
+  items.forEach(x=>ds.append(x.node()));
+}
+function dueItems(){
+  const out=[];
+  Object.entries(courtsMap).forEach(([id,r])=>{if((r.status==='upcoming'||r.status==='adjourned')&&courtDate(r))out.push({due:courtDate(r),node:()=>{const n=courtLine(id,r);return n}})});
+  Object.entries(scenesMap).forEach(([id,r])=>{if(r.status==='planned'&&r.date)out.push({due:r.date,node:()=>{const row=el('div','li');row.style.cursor='pointer';row.onclick=()=>openItem('scene',id);const t=el('div','t');t.append(el('b','','Crime scene: '+(r.place||'')),el('span','',fmt(r.date)+((r.team||[]).length?' · '+r.team.join(', '):'')));row.append(el('i','stripe '+(dlState(r.date)||'info')),t,el('span','chip info','Planned'));return row}})});
+  Object.entries(reminders).forEach(([id,r])=>{if(!r.done&&r.due)out.push({due:r.due,node:()=>remLine(id,r)})});
+  list().forEach(c=>{if(status(c)!=='done'&&c.deadline)out.push({due:c.deadline,node:()=>caseLine(c,'Case deadline · '+fmt(c.deadline)+' · '+dlLabel(c.deadline),dlState(c.deadline))})});
+  return out.sort((a,b)=>a.due<b.due?-1:1);
+}
+function caseLine(c,sub,tone){
+  const r=el('div','li');r.style.cursor='pointer';r.tabIndex=0;
+  const t=el('div','t');const b=el('b','mono',c.cfsl);t.append(b,el('span','',(c.rc?c.rc+' · ':'')+sub));
+  const n=nextStep(c);
+  r.append(el('i','stripe '+(tone||'')),t,el('span','chip '+(n?'info':'ok'),n?'Next: '+SHORT[n]:'Completed'));
+  r.onclick=()=>openSheet(c.id);r.onkeydown=e=>{if(e.key==='Enter')openSheet(c.id)};return r;
+}
+
+/* ---------- cases table ---------- */
+let filt={status:'open',stage:'',pri:'',q:'',off:'',dev:'',ageMin:null,ageMax:null};
+function gotoCases(f){filt=Object.assign({status:'open',stage:'',pri:'',q:'',off:'',dev:'',ageMin:null,ageMax:null},f);syncFilterUI();location.hash='#cases';renderCases()}
+function syncFilterUI(){$('#fStatus').value=filt.status;$('#fStage').value=filt.stage;$('#fPri').value=filt.pri;$('#fOff').value=filt.off;$('#fDev').value=filt.dev;$('#q').value=filt.q}
+STEPS.forEach(s=>{const o=el('option','',SHORT[s.k]);o.value=s.k;$('#fStage').append(o)});
+['#fStatus','#fStage','#fPri','#fOff','#fDev'].forEach(s=>$(s).onchange=()=>{filt.status=$('#fStatus').value;filt.stage=$('#fStage').value;filt.pri=$('#fPri').value;filt.off=$('#fOff').value;filt.dev=$('#fDev').value;renderCases()});
+$('#q').oninput=()=>{filt.q=$('#q').value;renderCases()};
+$('#fClear').onclick=()=>gotoCases({});
+document.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{const k=th.dataset.sort;sort=sort.k===k?{k,dir:-sort.dir}:{k,dir:1};renderCases()});
+function sortVal(c,k){if(k==='age')return age(c)??-1;if(k==='stage')return doneCount(c);if(k==='priority')return c.priority==='high'?0:1;if(k==='deadline')return c.deadline||'9999';if(k==='officer')return OFF[c.officer]||'zz';if(k==='devices')return exList(c).length;return c[k]??''}
+function offTd(c){const td=el('td','',OFF[c.officer]||'—');td.style.whiteSpace='nowrap';if(!c.officer)td.className='muted';return td}
+function devTd(c){const td=el('td');const L=exList(c);
+  if(L.length){const t=caseTypes(c);td.append(el('span','',L.length+' · '+t.slice(0,2).map(x=>TYPE[x]).join(', ')+(t.length>2?' +'+(t.length-2):'')));td.firstChild.style.fontSize='12px'}
+  else{const b=el('button','chip warn','Add details');b.style.border='none';b.style.cursor='pointer';b.onclick=e=>{e.stopPropagation();openSheet(c.id,'ex')};td.append(b)}
+  return td}
+function renderCases(){
+  const tb=$('#caseRows');tb.replaceChildren();
+  const q=filt.q.trim().toLowerCase();
+  let rows=list().filter(c=>{
+    const st=status(c);
+    if(filt.status!=='all'&&st!==filt.status)return false;
+    if(filt.stage&&nextStep(c)!==filt.stage)return false;
+    if(filt.pri&&c.priority!==filt.pri)return false;
+    if(filt.off&&(c.officer||'none')!==filt.off)return false;
+    if(filt.dev==='missing'&&exList(c).length)return false;
+    if(filt.dev==='has'&&!exList(c).length)return false;
+    if(filt.ageMin!=null){const a=age(c);if(a==null||a<filt.ageMin||a>filt.ageMax)return false}
+    if(q&&![c.cfsl,c.rc,c.remarks,String(c.sno)].join(' ').toLowerCase().includes(q))return false;
+    return true});
+  rows.sort((a,b)=>{const x=sortVal(a,sort.k),y=sortVal(b,sort.k);return (x<y?-1:x>y?1:0)*sort.dir});
+  if(!loaded.cases){const tr=el('tr');const td=el('td','empty','Loading cases…');td.colSpan=11;tr.append(td);tb.append(tr)}
+  else if(!rows.length){const tr=el('tr');const td=el('td','empty',list().length?'No cases match these filters.':'No cases yet. Use “+ New case” to add the first one.');td.colSpan=11;tr.append(td);tb.append(tr)}
+  rows.forEach(c=>{
+    const tr=el('tr');tr.tabIndex=0;tr.onclick=()=>openSheet(c.id);tr.onkeydown=e=>{if(e.key==='Enter')openSheet(c.id)};
+    const n=nextStep(c);
+    const seals=el('div','seals');STEPS.forEach(s=>{const d=el('i','seal'+(stepDone(c,s.k)?' on':s.k===n?' cur':''));d.title=s.l;seals.append(d)});
+    const prog=el('div');prog.style.display='flex';prog.style.flexDirection='column';prog.style.gap='3px';prog.append(seals,el('span','muted',n?SHORT[n]:'Completed'));prog.lastChild.style.fontSize='12px';
+    const dl=el('td');if(c.deadline){dl.append(el('span','chip '+dlState(c.deadline),fmt(c.deadline)))}else dl.append(el('span','muted','—'));
+    const pr=el('td');pr.append(el('span','chip '+c.priority,c.priority==='high'?'High':'Normal'));
+    const pg=el('td');pg.append(prog);
+    tr.append(el('td','num',String(c.sno??'')),el('td','mono',c.cfsl),el('td','mono',c.rc||'—'),offTd(c),el('td','num',c.parcels!=null?String(c.parcels):'—'),
+      el('td','',fmt(c.received)),el('td','num',age(c)!=null?String(age(c)):'—'),pg,devTd(c),pr,dl);
+    tb.append(tr)});
+  $('#caseFoot').textContent=loaded.cases?`Showing ${rows.length} of ${list().length} cases`+(filt.ageLbl&&filt.ageMin!=null?` · pending ${filt.ageLbl.toLowerCase()}`:'')+'. Select a row to open its checklist.':'';
+}
+
+/* ---------- board ---------- */
+function renderBoard(){
+  const b=$('#board');b.replaceChildren();
+  COLS.forEach(col=>{
+    const cs=list().filter(c=>colOf(c)===col.id).sort((x,y)=>(x.priority==='high'?0:1)-(y.priority==='high'?0:1)||(age(y)||0)-(age(x)||0));
+    const d=el('div','col');const h=el('h3');h.append(el('span','',col.l),el('span','count',String(cs.length)));d.append(h,el('p','hint',col.h));
+    const shown=col.id==='done'?cs.slice(0,12):cs;
+    shown.forEach(c=>{const k=el('button','kc');const r1=el('div','r1');r1.append(el('span','cf',c.cfsl));
+      if(c.priority==='high')r1.append(el('span','chip high','High'));
+      const n=nextStep(c);const pr=el('div','prog');const i=el('i');i.style.width=(doneCount(c)/STEPS.length*100)+'%';pr.append(i);
+      const co=c.collection||{};const dest=co.to==='court'?"Sent to Hon'ble Court"+(co.place?', '+co.place:''):co.to==='io'?'Collected by IO':co.to==='other'?'Collected by '+(co.agency||'other agency'):'Collected';
+      const nx=el('span','nx',(n?'Next: '+SHORT[n]:dest+' · '+fmt(c.collected))+(age(c)!=null&&n?' · '+age(c)+' d':''));
+      k.append(r1,pr,nx);
+      if(col.id==='done'&&n&&co.to)k.append(el('span','nx',dest));
+      const et=exTotals(c);if(et.n)k.append(el('span','nx',et.n+' exhibit'+(et.n>1?'s':'')+' · '+fmtGB(et.cap)));if(c.deadline&&n){k.append(el('span','chip '+dlState(c.deadline),'Deadline '+fmt(c.deadline)))}
+      k.onclick=()=>openSheet(c.id);d.append(k)});
+    if(col.id==='done'&&cs.length>12){const m=el('button','ghost','Show all '+cs.length+' completed');m.onclick=()=>gotoCases({status:'done'});d.append(m)}
+    if(!cs.length)d.append(el('div','empty',loaded.cases?'None':'…'));
+    b.append(d)});
+}
+
+/* ---------- sheet (case detail) ---------- */
+function openSheet(id,tab){if(openCase!==id){sheetTab='check';confirmDel=null}if(tab)sheetTab=tab;openCase=id;renderSheet();$('#scrim').hidden=false;$('#sheet').hidden=false;setTimeout(()=>{const f=$('#sheet .sh button');f&&f.focus()},0)}
+function closeSheet(){flushField();openCase=null;$('#sheet').dataset.item='';if(typeof renderSceneSheet==='function')renderSceneSheet.draft=null;$('#scrim').hidden=true;$('#sheet').hidden=true}
+$('#scrim').onclick=closeSheet;document.addEventListener('keydown',e=>{if(e.key==='Escape'&&openCase)closeSheet()});
+let sheetTab='check';const openEx=new Set();let confirmDel=null;
+function fieldEl(lbl,input,full){const l=el('label',full?'full':'',lbl);l.append(input);return l}
+function inp(id,type,val,onch,ph){const i=el('input');i.type=type;i.id=id;if(val!=null)i.value=val;if(ph)i.placeholder=ph;i.disabled=!canWrite;i.onchange=()=>onch(i.value,i);return i}
+function sel(id,opts,val,onch){const s=el('select');s.id=id;opts.forEach(([v,l])=>{const o=el('option','',l);o.value=v;s.append(o)});s.value=val||'';s.disabled=!canWrite;s.onchange=()=>onch(s.value);return s}
+function tick(id,label,sub,checked,onch){const l=el('label','tchip');const i=el('input');i.type='checkbox';i.id=id;i.checked=!!checked;i.disabled=!canWrite;i.onchange=()=>onch(i.checked);const t=el('span','',label);if(sub){t.append(el('small','',sub))}l.append(i,t);return l}
+function ensureLists(){if(document.getElementById('toolList'))return;const d=el('datalist');d.id='toolList';TOOLS.forEach(t=>{const o=el('option');o.value=t;d.append(o)});const m=el('datalist');m.id='mediaList';MEDIA.forEach(x=>{const o=el('option');o.value=x[1];m.append(o)});const mk=el('datalist');mk.id='makeList';['SanDisk','HP','Kingston','Seagate','Western Digital','Toshiba','Samsung','Transcend','Strontium','Lexar','Sony','Moser Baer','Verbatim','Crucial','ADATA'].forEach(x=>{const o=el('option');o.value=x;mk.append(o)});document.body.append(d,m,mk)}
+
+function typesUnion(c,list){const s=new Set(c.exhibitTypes||[]);list.forEach(x=>x.type&&s.add(x.type));return [...s]}
+function updEx(c,xid,patch,log){
+  const list=exList(c).map(x=>x.id===xid?Object.assign({},x,patch):x);
+  const p={exhibitList:list,exhibitTypes:typesUnion(c,list)};
+  if(list.length){const st=Object.assign({},c.steps);let ch=false;
+    if(list.every(x=>(x.chain||{}).clone)&&!st.cloning){st.cloning=true;ch=true}
+    if(list.every(x=>(x.chain||{}).extract&&(x.chain||{}).analyse)&&!st.analysis){st.analysis=true;ch=true}
+    if(ch)p.steps=st}
+  saveCase(c.id,p,log);
+}
+function saveFinal(c,patch,log){
+  const f=Object.assign({},c.final||{},patch);const p={final:f};
+  const cp=f.copies||{};if(COPIES.every(([k])=>copyReady(cp[k]))&&!(c.steps||{}).copies){p.steps=Object.assign({},c.steps,{copies:true})}
+  saveCase(c.id,p,log);
+}
+
+function renderSheet(){
+  const sh=$('#sheet');if(!openCase){return}
+  if(openCase==='__new'){return renderNew()}
+  if(/^__(court|scene):/.test(openCase)){if(sh.dataset.item===openCase)return;sh.dataset.item=openCase;const [k,id]=openCase.slice(2).split(':');return k==='court'?renderCourtSheet(id):renderSceneSheet(id)}
+  const c=cases[openCase];if(!c){closeSheet();return}
+  ensureLists();
+  const ae=document.activeElement;const focusId=ae&&sh.contains(ae)?ae.id:null;
+  const oldSb=sh.querySelector('.sb');const prevScroll=oldSb?oldSb.scrollTop:0;const prevTab=sh.dataset.tab;
+  sh.replaceChildren();sh.dataset.tab=sheetTab;
+  const head=el('div','sh');const t=el('div','ttl');const sm0=el('small','muted','Case '+(c.sno??'')+' · '+(c.rc||''));sm0.id='shTitle';t.append(sm0,el('div','mono',c.cfsl));
+  const x=el('button','ghost','Close');x.onclick=closeSheet;head.append(t,x);
+  const tabs=el('div','stabs');const et=exTotals(c);
+  [['check','Checklist',doneCount(c)+'/'+STEPS.length],['ex','Exhibits & analysis',String(et.n)],['final','Final data',copiesState(c)+'/3'],['info','Details','']].forEach(([k,l,b])=>{
+    const bt=el('button',k===sheetTab?'on':'',l);bt.type='button';bt.id='stab-'+k;if(b)bt.append(el('span','count',b));bt.onclick=()=>{sheetTab=k;renderSheet()};tabs.append(bt)});
+  const body=el('div','sb');
+  ({check:tabCheck,ex:tabEx,final:tabFinal,info:tabInfo})[sheetTab](c,body);
+  sh.append(head,tabs,body);
+  if(prevTab===sheetTab)body.scrollTop=prevScroll;
+  if(focusId){const f=document.getElementById(focusId);if(f&&sh.contains(f))f.focus({preventScroll:true})}
+}
+
+function tabCheck(c,body){
+  const n=nextStep(c);const sm=el('div','rowbtns');
+  sm.append(el('span','chip '+(n?'info':'ok'),n?'Next: '+STEPS.find(s=>s.k===n).l:'Case completed'),el('span','chip normal',doneCount(c)+' of '+STEPS.length+' steps'));
+  if(age(c)!=null&&n)sm.append(el('span','chip '+(age(c)>365?'bad':age(c)>180?'warn':'normal'),age(c)+' days since receipt'));
+  body.append(sm);
+  const of=el('div','fields');of.append(fieldEl('Reporting officer',sel('sh-off',[['','Not assigned']].concat(OFFICERS),c.officer||'',v=>saveCase(c.id,{officer:v||null},'Reporting officer: '+(OFF[v]||'not assigned')))));body.append(of);
+  body.append(el('p','sub','Tick each step as you finish it. Opening, reporting and collection dates fill in with today if empty. Cloning and examination tick themselves once every exhibit has finished those stages under Exhibits & analysis.'));
+  const L=exList(c);
+  const ul=el('ul','flow');
+  STEPS.forEach(s=>{const done=stepDone(c,s.k);const li=el('li',done?'done':s.k===n?'next':'');
+    const cb=el('input');cb.type='checkbox';cb.checked=done;cb.id='st-'+s.k;cb.disabled=!canWrite;
+    const lb=el('label');lb.htmlFor=cb.id;let d=s.d;
+    if(L.length&&s.k==='cloning')d+=' · '+L.filter(x=>(x.chain||{}).clone).length+'/'+L.length+' exhibits cloned';
+    if(L.length&&s.k==='analysis')d+=' · '+L.filter(x=>(x.chain||{}).analyse).length+'/'+L.length+' exhibits analysed';
+    if(s.k==='copies')d+=' · '+copiesState(c)+'/3 copies ready';
+    lb.append(el('b','',s.l),el('span','',d));
+    cb.onchange=()=>{const steps=Object.assign({},c.steps,{[s.k]:cb.checked});const patch={steps};
+      if(cb.checked){const t=todayISO();if(s.k==='opened'&&!c.opened)patch.opened=t;if(s.k==='dispatched'&&!c.reported)patch.reported=t;if(s.k==='collected'&&!c.collected)patch.collected=t;}
+      saveCase(c.id,patch,(cb.checked?'Completed: ':'Reopened: ')+s.l)};
+    li.append(cb,lb);ul.append(li)});
+  body.append(ul);
+  // collection / court
+  const co=c.collection||{};const box=el('div','box');
+  box.append(el('h2','','Collection'),el('p','sub','Who received the report and exhibits once the case was complete'));
+  const fs=el('div','fields');
+  const setCo=(patch,log)=>saveCase(c.id,{collection:Object.assign({},co,patch)},log);
+  fs.append(fieldEl('Collected by / sent to',sel('co-to',[['','Not yet collected'],['io','Investigating Officer'],['court',"Hon'ble Court"],['other','Other agency']],co.to,v=>setCo({to:v||null},v?'Collection: '+({io:'Investigating Officer',court:"Hon'ble Court",other:'Other agency'})[v]:'Collection cleared'))));
+  fs.append(fieldEl('Date of collection',inp('co-date','date',c.collected||'',v=>saveCase(c.id,{collected:v||null},'Date of collection → '+(v?fmt(v):'cleared')))));
+  if(co.to==='court'){
+    fs.append(fieldEl('Court',inp('co-court','text',co.court||'',v=>setCo({court:v.trim()},'Court set: '+v.trim()),'e.g. Court of CMM / Special Judge (CBI)')));
+    fs.append(fieldEl('Place',inp('co-place','text',co.place||'',v=>setCo({place:v.trim()},'Court place: '+v.trim()),'e.g. Rouse Avenue, New Delhi')));
+  }
+  if(co.to==='other')fs.append(fieldEl('Agency',inp('co-agency','text',co.agency||'',v=>setCo({agency:v.trim()},'Agency: '+v.trim()),'Agency name'),true));
+  fs.append(fieldEl('Received by (name, rank)',inp('co-by','text',co.by||'',v=>setCo({by:v.trim()},'Received by: '+v.trim()),co.to==='court'?'Court official / naib court':'IO name and rank'),true));
+  box.append(fs);body.append(box);
+}
+
+function tabEx(c,body){
+  const L=exList(c);const tt=exTotals(c);
+  // types
+  const tb=el('div','box');tb.append(el('h2','','Types of exhibits'),el('p','sub','Tick every kind of device received in this case'));
+  const g=el('div','typegrid');const types=new Set(caseTypes(c));
+  EXTYPES.forEach(([k,l])=>{const used=L.some(x=>x.type===k);const ch=tick('ty-'+k,l,used?L.filter(x=>x.type===k).length+' logged':'',types.has(k),v=>{
+    const s=new Set(c.exhibitTypes||[]);if(v)s.add(k);else s.delete(k);saveCase(c.id,{exhibitTypes:[...s]},(v?'Exhibit type added: ':'Exhibit type removed: ')+l)});
+    if(used)ch.querySelector('input').disabled=true;g.append(ch)});
+  tb.append(g);body.append(tb);
+  // storage stats
+  const st=el('div','stats');
+  [[String(tt.n),'Exhibits'],[fmtGB(tt.cap),'Storage capacity'],[fmtGB(tt.an),'Storage analysed'],[fmtGB(tt.del),'Data extracted']].forEach(([a,b])=>{const d=el('div','stat');d.append(el('b','',a),el('span','',b));st.append(d)});
+  body.append(st);
+  // exhibit register
+  const reg=el('div');reg.style.display='flex';reg.style.flexDirection='column';reg.style.gap='8px';
+  const rh=el('div');rh.append(el('h2','','Exhibit register and analysis chain'),el('p','sub','One entry per device. Record hashes and tools so the chain of custody is complete.'));reg.append(rh);
+  if(!L.length)reg.append(el('div','empty','No exhibits logged yet. Pick a type below and add the first one, e.g. Ex-1 mobile phone.'));
+  L.forEach((x,ix)=>{
+    const d=el('details','ex');d.open=openEx.has(x.id);d.ontoggle=()=>{d.open?openEx.add(x.id):openEx.delete(x.id)};
+    const s=el('summary');s.append(el('span','chip info',x.mark||('Ex-'+(ix+1))),el('span','sm',[TYPE[x.type]||'Device',x.make].filter(Boolean).join(' · ')+(num(x.cap)?' · '+fmtGB(num(x.cap)):'')));
+    const dn=exDone(x);s.append(el('span','chip '+(dn===CHAIN.length?'ok':dn?'warn':'normal'),dn===CHAIN.length?'Chain complete':dn+'/'+CHAIN.length));
+    if(x.hashPre&&x.hashPost)s.append(el('span','chip '+(x.hashPre.trim().toLowerCase()===x.hashPost.trim().toLowerCase()?'ok':'bad'),x.hashPre.trim().toLowerCase()===x.hashPost.trim().toLowerCase()?'Hash match':'Hash mismatch'));
+    d.append(s);
+    const b=el('div','exbody');const p='x'+x.id+'-';
+    const up=(k,lbl)=>(v)=>updEx(c,x.id,{[k]:typeof v==='string'?v.trim():v},(x.mark||'Exhibit')+': '+lbl+' updated');
+    const f1=el('div','fields');
+    f1.append(fieldEl('Marking',inp(p+'mark','text',x.mark||'',up('mark','marking'),'Ex-1')),
+      fieldEl('Type',sel(p+'type',EXTYPES,x.type,up('type','type'))),
+      fieldEl('Make / model',inp(p+'make','text',x.make||'',up('make','make/model'),'e.g. Samsung A54')),
+      fieldEl(x.type==='mobile'||x.type==='tablet'?'IMEI / serial':x.type==='sim'?'ICCID':'Serial no.',inp(p+'serial','text',x.serial||'',up('serial','serial'))),
+      fieldEl('Storage capacity (GB)',inp(p+'cap','number',x.cap??'',v=>updEx(c,x.id,{cap:v===''?null:num(v)},(x.mark||'Exhibit')+': capacity '+v+' GB'),'e.g. 128')),
+      fieldEl('Storage analysed (GB)',inp(p+'an','number',x.analysed??'',v=>updEx(c,x.id,{analysed:v===''?null:num(v)},(x.mark||'Exhibit')+': analysed '+v+' GB'),'Used space examined')),
+      fieldEl('Data extracted for hand-over (GB)',inp(p+'del','number',x.deliver??'',v=>updEx(c,x.id,{deliver:v===''?null:num(v)},(x.mark||'Exhibit')+': extracted data '+v+' GB'),'Goes on the final copies')));
+    f1.querySelectorAll('input[type=number]').forEach(i=>{i.min='0';i.step='any'});
+    b.append(f1);
+    const tools=Array.isArray(x.tools)?x.tools:(x.tool?[{stage:'extraction',name:x.tool,version:''}]:[]);
+    const setTools=(nt,log)=>updEx(c,x.id,{tools:nt,tool:null},log);
+    const tbx=el('div','box');tbx.append(el('p','minihead','Tools used'));
+    [['extraction','Extraction / acquisition',x.type==='mobile'||x.type==='tablet'?'e.g. Cellebrite UFED 4PC':'e.g. FTK Imager'],['analysis','Analysis',x.type==='mobile'||x.type==='tablet'?'e.g. Cellebrite Physical Analyzer':'e.g. Magnet AXIOM']].forEach(([stg,lab,ph])=>{
+      const sec=el('div','toolsec');sec.append(el('span','lab',lab));
+      const rows=tools.map((t,i)=>[t,i]).filter(([t])=>t.stage===stg);
+      if(!rows.length)sec.append(el('span','muted','None added yet'));
+      rows.forEach(([t,i])=>{const r=el('div','toolrow');
+        const n=inp(p+'tl'+i+'n','text',t.name||'',v=>{const nt=tools.map((q,j)=>j===i?Object.assign({},q,{name:v.trim()}):q);setTools(nt,(x.mark||'Exhibit')+': '+stg+' tool '+[v.trim(),t.version].filter(Boolean).join(' v'))},ph);n.setAttribute('list','toolList');n.setAttribute('aria-label',lab+' tool');
+        const vv=inp(p+'tl'+i+'v','text',t.version||'',v=>{const nt=tools.map((q,j)=>j===i?Object.assign({},q,{version:v.trim()}):q);setTools(nt,(x.mark||'Exhibit')+': '+(t.name||'tool')+' version '+v.trim())},'Version, e.g. 7.69');vv.setAttribute('aria-label','Tool version');
+        const rm=el('button','ghost','Remove');rm.type='button';rm.disabled=!canWrite;rm.onclick=()=>setTools(tools.filter((_,j)=>j!==i),(x.mark||'Exhibit')+': removed '+stg+' tool '+(t.name||''));
+        r.append(n,vv,rm);sec.append(r)});
+      const ad=el('button','ghost','+ Add '+(stg==='extraction'?'extraction':'analysis')+' tool');ad.type='button';ad.style.alignSelf='flex-start';ad.disabled=!canWrite;
+      ad.onclick=()=>{const ni=tools.length;setTools(tools.concat([{stage:stg,name:'',version:''}]),null);const f=document.getElementById(p+'tl'+ni+'n');if(f)f.focus()};
+      sec.append(ad);tbx.append(sec)});
+    b.append(tbx);
+    b.append(el('p','minihead','Analysis chain'));
+    const ch=el('div','chain');
+    CHAIN.forEach(sx=>{const [l,dd]=chainLabel(x.type,sx.k);ch.append(tick(p+'c-'+sx.k,l,dd,(x.chain||{})[sx.k],v=>updEx(c,x.id,{chain:Object.assign({},x.chain,{[sx.k]:v})},(x.mark||'Exhibit')+': '+(v?'':'undone ')+l)))});
+    b.append(ch);
+    const f2=el('div','fields');
+    f2.append(fieldEl('Hash algorithm',sel(p+'algo',[['SHA-256','SHA-256'],['MD5','MD5'],['SHA-1','SHA-1'],['MD5 + SHA-256','MD5 + SHA-256']],x.algo||'SHA-256',up('algo','hash algorithm'))),
+      fieldEl('Image / extraction file',inp(p+'img','text',x.image||'',up('image','image file'),'e.g. Ex1_A54.ufd / Ex1.E01')),
+      fieldEl('Acquisition hash',(()=>{const i=inp(p+'h1','text',x.hashPre||'',up('hashPre','acquisition hash'));i.className='mono';return i})(),true),
+      fieldEl('Verification hash',(()=>{const i=inp(p+'h2','text',x.hashPost||'',up('hashPost','verification hash'));i.className='mono';return i})(),true));
+    b.append(f2);
+    const ta=el('textarea');ta.id=p+'notes';ta.placeholder='Condition, lock status, observations';ta.value=x.notes||'';ta.disabled=!canWrite;ta.onchange=()=>up('notes','notes')(ta.value);
+    const f3=el('div','fields');f3.append(fieldEl('Notes',ta,true));b.append(f3);
+    const rb=el('div','rowbtns');const del=el('button','ghost',confirmDel===x.id?'Confirm: remove '+(x.mark||'exhibit'):'Remove exhibit');del.id=p+'del-btn';del.disabled=!canWrite;
+    if(confirmDel===x.id){del.style.color='var(--bad)';const cn=el('button','ghost','Keep');cn.onclick=()=>{confirmDel=null;renderSheet()};rb.append(del,cn)}else rb.append(del);
+    del.onclick=()=>{if(confirmDel!==x.id){confirmDel=x.id;renderSheet();return}confirmDel=null;const list=exList(c).filter(y=>y.id!==x.id);openEx.delete(x.id);saveCase(c.id,{exhibitList:list},'Exhibit removed: '+(x.mark||''))};
+    b.append(rb);d.append(b);reg.append(d)});
+  // add
+  const add=el('div','rowbtns');const ts=sel('newExType',EXTYPES,[...types][0]||'mobile',()=>{});ts.disabled=!canWrite;
+  const ab=el('button','primary','+ Add exhibit');ab.disabled=!canWrite;
+  ab.onclick=()=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5);const nx={id,mark:'Ex-'+(L.length+1),type:ts.value,chain:{},algo:'SHA-256',cap:null,analysed:null,deliver:null};
+    openEx.add(id);const list=L.concat([nx]);saveCase(c.id,{exhibitList:list,exhibitTypes:typesUnion(c,list)},'Exhibit added: '+nx.mark+' ('+TYPE[nx.type]+')')};
+  add.append(ts,ab);
+  const nm=nextMissing(c.id);if(nm){const nb=el('button','ghost','Next case without device details ›');nb.onclick=()=>openSheet(nm.id,'ex');add.append(nb)}
+  reg.append(add);
+  body.append(reg);
+}
+
+function tabFinal(c,body){
+  const f=c.final||{};const cp=f.copies||{};const tt=exTotals(c);const gb=deliverGB(c);const rec=recommend(gb);
+  body.append(el('p','sub','After extraction and analysis, the relevant data goes onto one master. The master is cloned to three copies, each hash-verified and sealed: one for the IO, one for the Hon\'ble Court and one kept as the lab copy.'));
+  const st=el('div','stats');
+  [[fmtGB(tt.cap),'Storage capacity'],[fmtGB(tt.an),'Storage analysed'],[fmtGB(gb),'Data to hand over'],[copiesState(c)+' / 3','Copies ready']].forEach(([a,b])=>{const d=el('div','stat');d.append(el('b','',a),el('span','',b));st.append(d)});
+  body.append(st);
+  const r=el('div','reco');
+  if(rec){r.append('Storage needed: ',el('b','',rec),' per copy, ',el('b','','3 in total'),' for '+fmtGB(gb)+' of data.')}
+  else r.textContent='Enter the extracted data for each exhibit under Exhibits & analysis, or the total below, to see the storage device needed.';
+  body.append(r);
+  const box=el('div','box');box.append(el('h2','','Master data'));
+  const fs=el('div','fields');
+  fs.append(fieldEl('Total data to hand over (GB)',(()=>{const i=inp('fn-gb','number',f.dataGB??'',v=>saveFinal(c,{dataGB:v===''?null:num(v)},'Final data size '+(v?v+' GB':'set from exhibits')),tt.del?String(Math.round(tt.del*10)/10)+' (from exhibits)':'e.g. 42');i.min='0';i.step='any';return i})()),
+    fieldEl('Storage device per copy',(()=>{const i=inp('fn-media','text',f.media||'',v=>saveFinal(c,{media:v.trim()},'Copy media: '+v.trim()),rec||'e.g. 64 GB pen drive');i.setAttribute('list','mediaList');return i})()),
+    fieldEl('Hash algorithm',sel('fn-algo',[['SHA-256','SHA-256'],['MD5','MD5'],['SHA-1','SHA-1']],f.algo||'SHA-256',v=>saveFinal(c,{algo:v},'Master hash algorithm '+v))),
+    fieldEl('Master prepared on',inp('fn-date','date',f.masterDate||'',v=>saveFinal(c,{masterDate:v||null},'Master date '+fmt(v)))),
+    fieldEl('Master hash',(()=>{const i=inp('fn-hash','text',f.masterHash||'',v=>saveFinal(c,{masterHash:v.trim()},'Master hash recorded'));i.className='mono';return i})(),true));
+  box.append(fs);
+  const mg=el('div','chain');
+  mg.append(tick('fn-m1','Master prepared','Extracted data compiled',f.master,v=>saveFinal(c,{master:v},v?'Master data prepared':'Master reopened')),
+    tick('fn-m2','Master hashed','Hash value recorded',f.masterHashed,v=>saveFinal(c,{masterHashed:v},v?'Master hash recorded':'Master hash reopened')));
+  box.append(mg);body.append(box);
+  body.append(el('h2','','Three copies'));
+  COPIES.forEach(([k,l,hint])=>{const o=cp[k]||{};const card=el('div','copy');
+    const ct=el('div','ct');ct.append(el('b','',l));const rd=copyReady(o);ct.append(el('span','chip '+(o.handed?'ok':rd?'info':'normal'),o.handed?(k==='lab'?'Stored':'Handed over'):rd?'Ready':'Pending'));card.append(ct,el('span','muted',hint));
+    const setCp=(patch,log)=>{const all=Object.assign({},cp,{[k]:Object.assign({},o,patch)});saveFinal(c,{copies:all},l+': '+log)};
+    const g=el('div','chain');
+    g.append(tick('cp-'+k+'-cl','Cloned from master','',o.cloned,v=>setCp({cloned:v},v?'cloned':'clone undone')),
+      tick('cp-'+k+'-hv','Hash verified','Matches master',o.verified,v=>setCp({verified:v},v?'hash verified':'verification undone')),
+      tick('cp-'+k+'-sl','Sealed & labelled','',o.sealed,v=>setCp({sealed:v},v?'sealed':'seal undone')));
+    card.append(g);
+    const fs2=el('div','fields');
+    const mk=o.mark||'';
+    fs2.append(fieldEl('Media type',sel('cp-'+k+'-mt',[['','Select'],['pen drive','Pen drive'],['hard disk','Hard disk'],['SSD','SSD'],['DVD-R','DVD-R'],['memory card','Memory card'],['other','Other']],o.mtype||'',v=>setCp({mtype:v},'media type '+v))),
+      fieldEl('Make / company',(()=>{const i=inp('cp-'+k+'-mk','text',o.make||'',v=>setCp({make:v.trim()},'media make '+v.trim()),'e.g. SanDisk, Seagate, HP');i.setAttribute('list','makeList');return i})()),
+      fieldEl('Storage capacity (GB)',(()=>{const i=inp('cp-'+k+'-cap','number',o.capGB??'',v=>setCp({capGB:v===''?null:num(v)},'media capacity '+v+' GB'),gb?String(Math.ceil(gb)):'');i.min='0';i.step='any';return i})()),
+      fieldEl('Media serial no.',inp('cp-'+k+'-sn','text',o.serial||'',v=>setCp({serial:v.trim()},'serial recorded'))),
+      fieldEl('Marking on media',inp('cp-'+k+'-mark','text',mk,v=>setCp({mark:v.trim()},'marking '+v.trim()),copyMark(c,k)),true),
+      fieldEl(k==='lab'?'Stored on':'Handed over on',inp('cp-'+k+'-dt','date',o.handed||'',v=>setCp({handed:v||null},v?(k==='lab'?'stored ':'handed over ')+fmt(v):'date cleared'))),
+      fieldEl(k==='lab'?'Storage location':'Received by',inp('cp-'+k+'-to','text',o.to||'',v=>setCp({to:v.trim()},(k==='lab'?'location: ':'received by ')+v.trim()),k==='io'?'IO name and rank':k==='court'?'Court / official':'Almirah / evidence room')));
+    const md=mediaDesc(o);if(md||o.serial){const sline=el('span','chip info',(md||'Media')+(o.serial?' · S/N '+o.serial:''));ct.insertBefore(sline,ct.lastChild)}
+    if(gb&&num(o.capGB)&&num(o.capGB)<gb)card.append(el('span','chip bad','Media is smaller than the '+fmtGB(gb)+' to be handed over'));
+    card.append(fs2);
+    if(k==='io'&&(o.mtype||o.make||o.capGB)){const ab=el('button','ghost','Use the same media details for Court and Lab copies');ab.disabled=!canWrite;ab.onclick=()=>{const all=Object.assign({},cp);['court','lab'].forEach(q=>{all[q]=Object.assign({},all[q]||{},{mtype:o.mtype||'',make:o.make||'',capGB:o.capGB??null})});saveFinal(c,{copies:all},'Copy media applied to Court and Lab')};card.append(ab)}
+    body.append(card)});
+}
+
+function tabInfo(c,body){
+  body.append(el('h2','','Priority and deadline'));
+  const fs=el('div','fields');
+  fs.append(fieldEl('Priority',sel('shPri',[['normal','Normal'],['high','High']],c.priority||'normal',v=>saveCase(c.id,{priority:v},'Priority set to '+(v==='high'?'High':'Normal')))),
+    fieldEl('Deadline',inp('shDl','date',c.deadline||'',v=>saveCase(c.id,{deadline:v||null},v?'Deadline set to '+fmt(v):'Deadline cleared'))));
+  body.append(fs);
+  body.append(el('h2','','Register details'));
+  const fd=el('div','fields');
+  [['received','Date of receiving'],['opened','Date of opening'],['reported','Date of reporting'],['collected','Date of collection']].forEach(([k,l])=>fd.append(fieldEl(l,inp('shd-'+k,'date',c[k]||'',v=>saveCase(c.id,{[k]:v||null},l+' → '+(v?fmt(v):'cleared'))))));
+  fd.append(fieldEl('Exhibits (as in register)',inp('shd-exh','text',c.exhibits||'',v=>saveCase(c.id,{exhibits:v.trim()||null},'Exhibits field updated'))),
+    fieldEl('Parcels',(()=>{const i=inp('shd-par','number',c.parcels??'',v=>saveCase(c.id,{parcels:v===''?null:num(v)},'Parcels updated'));i.min='0';return i})()));
+  const ta=el('textarea');ta.id='shRem';ta.value=c.remarks||'';ta.disabled=!canWrite;ta.onchange=()=>saveCase(c.id,{remarks:ta.value},'Remarks updated');
+  fd.append(fieldEl('Remarks',ta,true));
+  body.append(fd);
+  body.append(el('h2','','Reminders for this case'));
+  const rl=el('div','list');const mine=Object.entries(reminders).filter(([,r])=>r.caseId===c.id).sort((a,b)=>(a[1].done-b[1].done)||(a[1].due<b[1].due?-1:1));
+  if(!mine.length)rl.append(el('div','empty','No reminders yet.'));mine.forEach(([id,r])=>rl.append(remLine(id,r,true)));
+  const f=el('form','addrow');const it=el('input');it.type='text';it.id='shRemText';it.placeholder='Reminder';it.required=true;const idt=el('input');idt.type='date';idt.id='shRemDue';idt.required=true;idt.value=addDays(todayISO(),3);
+  const bt=el('button','primary','Add');bt.type='submit';bt.disabled=!canWrite;f.append(it,idt,bt);
+  f.onsubmit=e=>{e.preventDefault();addReminder({text:it.value.trim(),due:idt.value,caseId:c.id,priority:c.priority||'normal'});it.value=''};
+  body.append(rl,f);
+}
+
+/* overview + flow extras */
+function renderExOverview(){
+  const all=list();const ex=all.flatMap(c=>exList(c));
+  const cap=ex.reduce((a,x)=>a+num(x.cap),0),an=ex.reduce((a,x)=>a+num(x.analysed),0),del=all.reduce((a,c)=>a+(status(c)!=='done'?deliverGB(c):0),0);
+  const pend=all.filter(c=>status(c)==='open'&&exList(c).length&&copiesState(c)<3).length;
+  const S=$('#exStats');S.replaceChildren();
+  [[String(ex.length),'Exhibits logged'],[fmtGB(cap),'Storage capacity'],[fmtGB(an),'Storage analysed'],[fmtGB(del),'Data to hand over (open)']].forEach(([a,b])=>{const d=el('div','stat');d.append(el('b','',loaded.cases?a:'—'),el('span','',b));S.append(d)});
+  const T=$('#exTypes');T.replaceChildren();
+  const cnt={};all.forEach(c=>{const L=exList(c);caseTypes(c).forEach(t=>{cnt[t]=(cnt[t]||0)+Math.max(1,L.filter(x=>x.type===t).length)})});
+  const rows=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length){T.append(el('div','empty',loaded.cases?'No exhibits logged yet. Open a case and use Exhibits & analysis to record each device.':'Loading…'));addMissingBtn(T);return}
+  const mx=Math.max(...rows.map(r=>r[1]));
+  rows.forEach(([t,n])=>{const r=el('div','agebar');r.style.gridTemplateColumns='150px minmax(0,1fr) 34px';r.style.cursor='default';const tr=el('div','tr');const i=el('i');i.style.width=(n/mx*100)+'%';i.style.background='var(--accent)';tr.append(i);r.append(el('span','',TYPE[t]||t),tr,el('span','v',String(n)));T.append(r)});
+  if(pend)T.append(el('p','sub',pend+' open case'+(pend>1?'s':'')+' with exhibits still need final data copies.'));
+  addMissingBtn(T);
+}
+function addMissingBtn(T){if(!loaded.cases)return;const miss=list().filter(c=>!exList(c).length);if(!miss.length)return;
+  const r=el('div','rowbtns');const b=el('button','',miss.length+' cases have no device details · fill them in');b.onclick=()=>gotoCases({status:'all',dev:'missing'});
+  const n=el('button','primary','Start with the oldest open case');const o=miss.filter(c=>status(c)!=='done').sort((a,b)=>(age(b)||0)-(age(a)||0))[0]||miss[0];n.onclick=()=>openSheet(o.id,'ex');r.append(n,b);T.append(r)}
+function nextMissing(cur){const miss=list().filter(c=>!exList(c).length&&c.id!==cur).sort((a,b)=>(status(a)==='done')-(status(b)==='done')||a.sno-b.sno);const after=miss.find(c=>c.sno>(cases[cur]||{}).sno&&status(c)!=='done');return after||miss[0]||null}
+function renderChainPipe(){
+  const P=$('#chainPipe');if(!P)return;P.replaceChildren();
+  const all=list().filter(c=>status(c)!=='done');const ex=all.flatMap(c=>exList(c));
+  const cnt={};CHAIN.forEach(s=>cnt[s.k]=0);ex.forEach(x=>{const n=exNext(x);if(n)cnt[n]++});
+  const withEx=all.filter(c=>exList(c).length);
+  const items=CHAIN.map(s=>[s.k,s.l,cnt[s.k],'exhibits'])
+    .concat([['master','Master data',withEx.filter(c=>!(c.final||{}).master).length,'cases'],
+      ['copies','3 copies',withEx.filter(c=>(c.final||{}).master&&copiesState(c)<3).length,'cases'],
+      ['handed','IO · Court · Lab',withEx.filter(c=>copiesState(c)===3&&COPIES.some(([k])=>!(((c.final||{}).copies||{})[k]||{}).handed)).length,'cases']]);
+  const mx=Math.max(1,...items.map(i=>i[2]));
+  items.forEach(([k,l,n,u],i)=>{const b=el('div','stage');b.style.cursor='default';const bar=el('div','bar');const f=el('div','fill');f.style.height=(n/mx*100)+'%';bar.append(f);
+    b.append(el('span','ix',String(i+1).padStart(2,'0')),bar,el('span','num',loaded.cases?String(n):'—'),el('span','nm',l+' · '+u));P.append(b)});
+}
+function renderNew(){
+  const sh=$('#sheet');sh.replaceChildren();
+  const head=el('div','sh');const t=el('div','ttl');const h=el('h2','','New case');h.id='shTitle';t.append(h);const x=el('button','ghost','Cancel');x.onclick=closeSheet;head.append(t,x);
+  const body=el('div','sb');const f=el('form');f.style.display='flex';f.style.flexDirection='column';f.style.gap='14px';
+  const fs=el('div','fields');
+  const fld=(id,l,type,full,req)=>{const lb=el('label',full?'full':'',l);const i=el('input');i.type=type;i.id='n-'+id;if(req)i.required=true;lb.append(i);fs.append(lb);return i};
+  const cf=fld('cfsl','CFSL No.','text',true,true);cf.placeholder='CFSL(DELHI)/00000/COM/A00000/26';
+  const rc=fld('rc','RC / FIR','text',false,false);const ex=fld('ex','Exhibits','text',false,false);ex.placeholder='e.g. 10+3';
+  const pa=fld('pa','Parcels','number',false,false);pa.min='0';const rcv=fld('rcv','Date of receiving','date',false,true);rcv.value=todayISO();
+  const dlI=fld('dl','Deadline','date',false,false);
+  const lo=el('label','','Reporting officer');const so=el('select');so.id='n-off';[['','Not assigned']].concat(OFFICERS).forEach(([v,l])=>{const o=el('option','',l);o.value=v;so.append(o)});lo.append(so);fs.append(lo);
+  const lp=el('label','','Priority');const sp=el('select');sp.id='n-pri';[['normal','Normal'],['high','High']].forEach(([v,l])=>{const o=el('option','',l);o.value=v;sp.append(o)});lp.append(sp);fs.append(lp);
+  const lm=el('label','full','Remarks');const ta=el('textarea');ta.id='n-rem';lm.append(ta);fs.append(lm);
+  const sb=el('button','primary','Add case');sb.type='submit';sb.disabled=!canWrite;
+  f.append(fs,sb);
+  f.onsubmit=async e=>{e.preventDefault();if(!db)return toast('Saving is unavailable in this view');
+    const max=Math.max(0,...list().map(c=>c.sno||0));const sno=max+1;let id='c'+String(sno).padStart(3,'0');while(cases[id])id+='b';
+    const steps={};STEPS.forEach(s=>steps[s.k]=s.k==='received');
+    const data={sno,cfsl:cf.value.trim(),rc:rc.value.trim(),exhibits:ex.value.trim()||null,parcels:pa.value?Number(pa.value):null,received:rcv.value,opened:null,reported:null,collected:null,remarks:ta.value.trim(),priority:sp.value,officer:so.value||null,deadline:dlI.value||null,steps,createdAt:new Date().toISOString()};
+    try{await db.doc('cases/'+id).set(data);cases[id]=Object.assign({id},data);logAct(id,'New case registered');toast('Case added');openSheet(id);renderAll()}catch(err){handleErr(err)}};
+  body.append(f);sh.append(head,body);
+}
+$('#btnAdd').onclick=()=>{openCase='__new';renderNew();$('#scrim').hidden=false;$('#sheet').hidden=false;setTimeout(()=>$('#n-cfsl')?.focus(),0)};
+
+/* ---------- reminders ---------- */
+function remLine(id,r,compact){
+  const row=el('div','li');const cb=el('input');cb.type='checkbox';cb.checked=!!r.done;cb.id='rm-'+id+(compact?'-s':'');cb.disabled=!canWrite;cb.setAttribute('aria-label','Mark done');
+  cb.onchange=async()=>{reminders[id]=Object.assign({},r,{done:cb.checked,doneAt:cb.checked?new Date().toISOString():null});renderAll();
+    try{await db.doc('reminders/'+id).update({done:cb.checked,doneAt:reminders[id].doneAt});logAct(r.caseId,(cb.checked?'Reminder done: ':'Reminder reopened: ')+r.text)}catch(e){handleErr(e)}};
+  const t=el('div','t');const c=r.caseId&&cases[r.caseId];
+  const b=el('b','',r.text);if(r.done){b.style.textDecoration='line-through';b.style.color='var(--muted)'}
+  t.append(b,el('span','',fmt(r.due)+(r.done?'':' · '+dlLabel(r.due))+(c&&!compact?' · '+c.cfsl:'')));
+  if(c&&!compact){t.style.cursor='pointer';t.onclick=()=>openSheet(r.caseId)}
+  const right=el('div');right.style.display='flex';right.style.gap='6px';right.style.alignItems='center';
+  if(r.priority==='high'&&!r.done)right.append(el('span','chip high','High'));
+  if(!r.done)right.append(el('span','chip '+dlState(r.due),dlState(r.due)==='bad'?'Overdue':dlState(r.due)==='warn'?'This week':'Upcoming'));
+  const del=el('button','ghost','Delete');del.disabled=!canWrite;del.onclick=async()=>{const old=reminders[id];delete reminders[id];renderAll();try{await db.doc('reminders/'+id).delete()}catch(e){reminders[id]=old;renderAll();handleErr(e)}};
+  right.append(del);
+  const g=el('div');g.style.display='flex';g.style.gap='8px';g.style.alignItems='center';g.append(el('i','stripe '+(r.done?'':dlState(r.due))),cb);
+  row.append(g,t,right);return row;
+}
+async function addReminder(r){
+  if(!db)return toast('Saving is unavailable in this view');if(!r.text||!r.due)return;
+  const data=Object.assign({done:false,createdAt:new Date().toISOString()},r);
+  try{const ref=db.collection('reminders').doc();await ref.set(data);reminders[ref.id]=data;renderAll();logAct(r.caseId||null,'Reminder added: '+r.text);toast('Reminder added')}catch(e){handleErr(e)}
+}
+$('#remDue').value=addDays(todayISO(),1);
+$('#remForm').onsubmit=e=>{e.preventDefault();addReminder({text:$('#remText').value.trim(),due:$('#remDue').value,caseId:$('#remCase').value||null,priority:$('#remPri').value});$('#remText').value=''};
+$('#remShow').onchange=renderReminders;
+function renderReminders(){
+  const sel=$('#remCase');const v=sel.value;sel.replaceChildren(el('option','','No case'));sel.firstChild.value='';
+  list().filter(c=>status(c)!=='done').sort((a,b)=>a.sno-b.sno).forEach(c=>{const o=el('option','',c.sno+' · '+c.cfsl);o.value=c.id;sel.append(o)});sel.value=v;
+  const show=$('#remShow').value;const L=$('#remList');L.replaceChildren();
+  const rs=Object.entries(reminders).filter(([,r])=>show==='all'||(show==='done'?r.done:!r.done)).sort((a,b)=>(a[1].done-b[1].done)||(a[1].due<b[1].due?-1:1));
+  if(!loaded.rem)L.append(el('div','empty','Loading reminders…'));
+  else if(!rs.length)L.append(el('div','empty',show==='done'?'No finished reminders yet.':'No open reminders. Add one above, e.g. “Follow up with IO for collection”.'));
+  rs.forEach(([id,r])=>L.append(remLine(id,r)));
+}
+
+/* ---------- deadlines ---------- */
+function renderDeadlines(){
+  const L=$('#dlList');L.replaceChildren();
+  const w=openList().filter(c=>c.deadline).sort((a,b)=>a.deadline<b.deadline?-1:1);
+  if(!w.length)L.append(el('div','empty',loaded.cases?'No deadlines set yet. Pick a date for a case on the right.':'Loading…'));
+  w.forEach(c=>L.append(caseLine(c,fmt(c.deadline)+' · '+dlLabel(c.deadline),dlState(c.deadline))));
+  const N=$('#noDl');N.replaceChildren();
+  const nd=openList().filter(c=>!c.deadline).sort((a,b)=>(a.priority==='high'?0:1)-(b.priority==='high'?0:1)||(age(b)||0)-(age(a)||0));
+  if(!nd.length&&loaded.cases)N.append(el('div','empty','Every open case has a deadline.'));
+  nd.forEach(c=>{const r=el('div','li');const t=el('div','t');t.style.cursor='pointer';t.onclick=()=>openSheet(c.id);
+    t.append(el('b','mono',c.cfsl),el('span','',(age(c)!=null?age(c)+' days pending · ':'')+'Next: '+SHORT[nextStep(c)]));
+    const i=el('input');i.type='date';i.id='nd-'+c.id;i.disabled=!canWrite;i.setAttribute('aria-label','Deadline for '+c.cfsl);
+    i.onchange=()=>{if(i.value)saveCase(c.id,{deadline:i.value},'Deadline set to '+fmt(i.value))};
+    r.append(el('i','stripe '+(c.priority==='high'?'bad':'')),t,i);N.append(r)});
+  const n=openList().filter(c=>dlState(c.deadline)==='bad'||dlState(c.deadline)==='warn').length;
+  const tc=$('#tcDl');tc.textContent=loaded.cases?String(n):'—';tc.className='count'+(n?' hot':'');
+}
+$('#bulkHigh').onclick=async()=>{const days=Number($('#bulkDays').value);const t=openList().filter(c=>!c.deadline&&c.priority==='high');
+  if(!t.length)return toast('Every high-priority case already has a deadline');
+  for(const c of t){await saveCase(c.id,{deadline:addDays(todayISO(),days)},'Deadline set to '+fmt(addDays(todayISO(),days)))}toast('Deadline set for '+t.length+' cases')};
+
+/* ---------- activity ---------- */
+function renderActivity(){
+  const all=[];Object.entries(actDays).forEach(([d,v])=>(v.entries||[]).forEach(e=>all.push(e)));all.sort((a,b)=>a.t<b.t?1:-1);
+  const t=todayISO();const wk=addDays(t,-6);
+  const today=all.filter(e=>e.t.slice(0,10)===t||localDay(e.t)===t).length;
+  const week=all.filter(e=>localDay(e.t)>=wk).length;
+  const stepsWeek=all.filter(e=>localDay(e.t)>=wk&&e.text.startsWith('Completed: ')).length;
+  const collectedM=list().filter(c=>c.collected&&c.collected>=addDays(t,-30)).length;
+  const reportedM=list().filter(c=>c.reported&&c.reported>=addDays(t,-30)).length;
+  const k=$('#actKpis');k.replaceChildren(kpi(today,'Actions today'),kpi(week,'Actions, last 7 days'),kpi(stepsWeek,'Steps completed, 7 days','ok'),kpi(reportedM,'Reports finalised, 30 days'),kpi(collectedM,'Collected, 30 days','ok'),kpi(openList().length,'Still pending','warn',()=>gotoCases({status:'all'})));
+  [...k.children].forEach(b=>{if(!b.onclick)b.style.cursor='default'});
+  // heatmap
+  const H=$('#heat');H.replaceChildren();const per={};all.forEach(e=>{const d=localDay(e.t);per[d]=(per[d]||0)+1});
+  const start=parse(addDays(t,-7*16+1));start.setDate(start.getDate()-((start.getDay()+6)%7));
+  for(let d=new Date(start);d<=parse(t);d.setDate(d.getDate()+1)){const iso=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);const n=per[iso]||0;
+    const i=el('i',(n>=8?'l3':n>=3?'l2':n>=1?'l1':'')+(iso===t?' td':''));i.title=fmt(iso)+': '+n+' action'+(n===1?'':'s');H.append(i)}
+  const L=$('#actList');L.replaceChildren();
+  if(!all.length)L.append(el('div','empty',loaded.act?'Nothing logged yet. Each checklist tick, deadline, priority change and reminder you make here is recorded with the time.':'Loading…'));
+  all.slice(0,150).forEach(e=>{const r=el('div','li');const tt=el('div','t');tt.append(el('b','',e.text),el('span','',new Date(e.t).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+(e.cfsl?' · '+e.cfsl:'')));
+    if(e.caseId&&cases[e.caseId]){tt.style.cursor='pointer';tt.onclick=()=>openSheet(e.caseId)}
+    r.append(el('i','stripe '+(e.text.startsWith('Completed')?'ok':'info')),tt,el('span',''));L.append(r)});
+}
+function localDay(iso){const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
+
+/* ---------- reports ---------- */
+let reportsPub={}, rndDocs={};
+const SIGN={name:'Abhishek Singh',desig:'Senior Digital Forensic Expert',org:'CFSL, New Delhi'};
+const iso8=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const dmy=s=>{if(!s)return '';const [y,m,d]=s.split('-');return d+'.'+m+'.'+y};
+function weekStart(iso){const d=parse(iso);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso8(d)}
+function periods(type){const t=todayISO();const out=[];
+  if(type==='weekly'){let m=weekStart(t);for(let i=0;i<16;i++){const to=addDays(m,6);out.push({key:'W-'+m,from:m,to,label:fmt(m)+' to '+fmt(to)+(i===0?' (this week)':'')});m=addDays(m,-7)}}
+  else{const d=parse(t);for(let i=0;i<13;i++){const f=new Date(d.getFullYear(),d.getMonth()-i,1),e=new Date(d.getFullYear(),d.getMonth()-i+1,0);out.push({key:'M-'+iso8(f).slice(0,7),from:iso8(f),to:iso8(e),label:f.toLocaleDateString('en-GB',{month:'long',year:'numeric'})+(i===0?' (this month)':'')})}}
+  return out}
+function mediaDesc(o){return [o.make,o.capGB?fmtGB(num(o.capGB)):'',o.mtype].filter(Boolean).join(' ')}
+function copyMark(c,k){return c.cfsl+' / '+({io:'IO COPY',court:'COURT COPY',lab:'LAB COPY'})[k]}
+
+function buildReport(type,p,officer){
+  const asOn=p.to<todayISO()?p.to:todayISO();
+  const inP=d=>!!d&&d>=p.from&&d<=asOn;
+  let L=list();if(officer)L=L.filter(c=>(c.officer||'none')===officer);
+  const offName=c=>OFF[c.officer]||'Not assigned';
+  const pendStart=L.filter(c=>c.received&&c.received<p.from&&!(c.reported&&c.reported<p.from));
+  const received=L.filter(c=>inP(c.received)), opened=L.filter(c=>inP(c.opened)), reported=L.filter(c=>inP(c.reported)), collected=L.filter(c=>inP(c.collected));
+  const toCourt=collected.filter(c=>(c.collection||{}).to==='court').length;
+  const pendEnd=L.filter(c=>c.received&&c.received<=asOn&&!(c.reported&&c.reported<=asOn));
+  const awaiting=L.filter(c=>c.reported&&c.reported<=asOn&&!(c.collected&&c.collected<=asOn));
+  const anRep=reported.reduce((a,c)=>a+exTotals(c).an,0), exRep=reported.reduce((a,c)=>a+exTotals(c).n,0);
+  const summary=[
+    ['Cases pending at the start of the period',pendStart.length],
+    ['Cases received during the period',received.length+(received.length?' ('+received.reduce((a,c)=>a+num(c.parcels),0)+' parcels)':'')],
+    ['Cases opened during the period',opened.length],
+    ['Reports finalised during the period',reported.length+(exRep?' ('+exRep+' exhibits, '+fmtGB(anRep)+' analysed)':'')],
+    ['Cases collected during the period',collected.length+(toCourt?" (sent to Hon'ble Court: "+toCourt+')':'')],
+    ['Cases pending at the end of the period',pendEnd.length],
+    ['   of which high priority',pendEnd.filter(c=>c.priority==='high').length],
+    ['Reported, awaiting collection',awaiting.length]];
+  const offRows=officer?[]:OFFICERS.concat([['none','Not assigned']]).map(([k,l])=>{const f=c=>(c.officer||'none')===k;return [l,received.filter(f).length,reported.filter(f).length,pendEnd.filter(f).length]}).filter(r=>r[1]||r[2]||r[3]||r[0]!=='Not assigned');
+  const ids=new Set(L.map(c=>c.id));
+  const work=[];Object.entries(actDays).forEach(([d,v])=>(v.entries||[]).forEach(e=>{const ld=localDay(e.t);if(ld>=p.from&&ld<=asOn&&(!officer||ids.has(e.caseId)))work.push([e.t,e.cfsl||'—',e.text])}));
+  work.sort((a,b)=>a[0]<b[0]?-1:1);
+  const copies=[];L.forEach(c=>COPIES.forEach(([k,l])=>{const o=((c.final||{}).copies||{})[k];if(o&&inP(o.handed))copies.push([c.cfsl,l,mediaDesc(o)||'—',o.serial||'—',o.mark||copyMark(c,k),o.to||'—',dmy(o.handed)])}));
+  const sortP=(a,b)=>(a.priority==='high'?0:1)-(b.priority==='high'?0:1)||(age(b)||0)-(age(a)||0);
+  const dev=c=>{const t=caseTypes(c);return t.length?t.map(x=>TYPE[x]).join(', '):'—'};
+  const rnd=(rndDocs[p.key]||{}).text||'';
+  return {type,key:p.key,from:p.from,to:p.to,asOn,label:p.label.replace(/ \(this (week|month)\)/,''),officer:officer||null,officerName:officer?(OFF[officer]||'Not assigned'):null,generated:new Date().toISOString(),
+    summary,offRows,
+    received:received.sort((a,b)=>a.received<b.received?-1:1).map(c=>[c.sno,c.cfsl,c.rc||'—',c.parcels??'—',dmy(c.received),offName(c)]),
+    reported:reported.sort((a,b)=>a.reported<b.reported?-1:1).map(c=>[c.sno,c.cfsl,c.rc||'—',dev(c),dmy(c.reported),offName(c),c.collected&&c.collected<=asOn?({court:"Hon'ble Court",io:'IO',other:'Other agency'})[(c.collection||{}).to]||'Collected':'Awaiting']),
+    work:work.map(w=>[new Date(w[0]).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),w[1],w[2]]),
+    copies,
+    pending:pendEnd.sort(sortP).map(c=>[c.sno,c.cfsl,c.rc||'—',offName(c),dmy(c.received),c.received?daysBetween(c.received,asOn):'—',SHORT[nextStep(c)]||'—',c.priority==='high'?'High':'Normal']),
+    courts:Object.values(courtsMap).filter(r=>{const d=r.status==='adjourned'?r.date:courtDate(r);return (inP(r.date)||inP(r.nextDate))&&(!officer||ids.has(r.caseId))}).sort((a,b)=>a.date<b.date?-1:1).map(r=>[dmy(r.date)+(r.time?' '+r.time:''),[r.court,r.place].filter(Boolean).join(', ')||'—',caseRefText(r),LBL(CPURPOSE)[r.purpose]||'—',(LBL(CSTATUS)[r.status]||'')+(r.status==='adjourned'&&r.nextDate?' to '+dmy(r.nextDate):'')]),
+    scenes:Object.values(scenesMap).filter(r=>inP(r.date)&&(!officer||ids.has(r.caseId))).sort((a,b)=>a.date<b.date?-1:1).map(r=>[dmy(r.date),r.place||'—',[r.agency,caseRefText(r)].filter(x=>x&&x!=='—').join(' / ')||'—',(r.team||[]).join(', ')||'—',LBL(SSTATUS)[r.status]||'']),
+    rnd};
+}
+
+function pt(s){return String(s??'').replace(/→/g,'->').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF–—•]/g,'')}
+function makePDF(rep){
+  if(!window.jspdf||!window.jspdf.jsPDF){toast('The PDF tool did not load. Check your connection and reload.');return null}
+  const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=16,teal=[13,100,102];let y;
+  // letterhead
+  doc.setTextColor(20,35,43);
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text('CENTRAL FORENSIC SCIENCE LABORATORY',W/2,17,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+  doc.text('Directorate of Forensic Science Services, Ministry of Home Affairs, Government of India',W/2,23,{align:'center'});
+  doc.setFont('helvetica','bold');doc.text('Cyber Forensics Division, New Delhi',W/2,28.5,{align:'center'});
+  doc.setDrawColor(...teal);doc.setLineWidth(.8);doc.line(M,32,W-M,32);doc.setLineWidth(.25);doc.line(M,33.3,W-M,33.3);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Date: '+dmy(todayISO()),W-M,39,{align:'right'});
+  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text(rep.type==='weekly'?'WEEKLY PROGRESS REPORT':'MONTHLY PROGRESS REPORT',W/2,46,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+  doc.text(pt('Period: '+fmt(rep.from)+' to '+fmt(rep.to)+(rep.asOn<rep.to?'  (position as on '+fmt(rep.asOn)+')':'')),W/2,52,{align:'center'});
+  y=57;if(rep.officerName){doc.text(pt('Reporting Officer: '+rep.officerName),W/2,y,{align:'center'});y+=5}
+  y+=2;
+  let sec=0;
+  const heading=t=>{if(y>262){doc.addPage();y=20}sec++;doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(...teal);doc.text(sec+'. '+t,M,y);doc.setTextColor(20,35,43);y+=2.5};
+  const table=(head,body,opts={})=>{
+    if(!body.length){doc.setFont('helvetica','italic');doc.setFontSize(9);doc.text('Nil',M+4,y+4.5);y+=10;return}
+    doc.autoTable(Object.assign({startY:y,head:[head.map(pt)],body:body.map(r=>r.map(pt)),margin:{left:M,right:M,top:18,bottom:18},theme:'grid',
+      styles:{font:'helvetica',fontSize:8.2,cellPadding:1.5,textColor:[20,35,43],lineColor:[200,210,214],lineWidth:.15,overflow:'linebreak'},
+      headStyles:{fillColor:teal,textColor:255,fontStyle:'bold'},alternateRowStyles:{fillColor:[244,247,248]}},opts));
+    y=doc.lastAutoTable.finalY+7};
+  heading('Summary');table(['Particulars','Number'],rep.summary,{columnStyles:{1:{cellWidth:62}}});
+  if(rep.offRows.length){heading('Officer-wise position');table(['Reporting Officer','Received','Reports finalised','Pending at end'],rep.offRows)}
+  heading('Cases received during the period');table(['S.No','CFSL No.','RC / FIR','Parcels','Received','Reporting Officer'],rep.received,{columnStyles:{0:{cellWidth:11},3:{cellWidth:15}}});
+  heading('Reports finalised during the period');table(['S.No','CFSL No.','RC / FIR','Devices','Reported','Officer','Collection'],rep.reported,{columnStyles:{0:{cellWidth:11}}});
+  heading('Final data copies handed over');table(['CFSL No.','Copy','Storage media','Serial no.','Marking','Received by / location','Date'],rep.copies,{styles:{fontSize:7.4,cellPadding:1.3}});
+  heading('Work done during the period');table(['Date & time','CFSL No.','Action'],rep.work,{styles:{fontSize:7.6,cellPadding:1.3},columnStyles:{0:{cellWidth:30},1:{cellWidth:58}}});
+  heading('Cases pending at the end of the period');table(['S.No','CFSL No.','RC / FIR','Officer','Received','Days','Next step','Priority'],rep.pending,{styles:{fontSize:7.6,cellPadding:1.3},columnStyles:{0:{cellWidth:10},1:{cellWidth:50},3:{cellWidth:24},5:{cellWidth:11,halign:'right'}}});
+  heading('Court attendance');table(['Date','Court','Case','Purpose','Status'],rep.courts||[],{columnStyles:{0:{cellWidth:24}}});
+  heading('Crime scene visits');table(['Date','Place','Agency / case','Team members','Status'],rep.scenes||[],{columnStyles:{0:{cellWidth:20}}});
+  heading('Research & Development');
+  doc.setFont('helvetica','normal');doc.setFontSize(9.3);
+  const txt=(rep.rnd||'').trim()?pt(rep.rnd):'Nil';
+  const lines=doc.splitTextToSize(txt,W-2*M-4);y+=3;
+  lines.forEach(l=>{if(y>275){doc.addPage();y=20}doc.text(l,M+2,y);y+=4.6});
+  // signature
+  y+=6;if(y>242){doc.addPage();y=30}
+  doc.setFontSize(9.5);doc.text('Place: New Delhi',M,y+22);doc.text('Date: '+dmy(todayISO()),M,y+27);
+  doc.setFont('helvetica','bold');doc.text('('+SIGN.name+')',W-M,y+22,{align:'right'});
+  doc.setFont('helvetica','normal');doc.text(SIGN.desig,W-M,y+27,{align:'right'});doc.text(SIGN.org,W-M,y+32,{align:'right'});
+  // running header/footer
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(91,107,115);
+    if(i>1){doc.text('CFSL New Delhi · Cyber Forensics Division',M,11);doc.text(pt((rep.type==='weekly'?'Weekly':'Monthly')+' progress report · '+rep.label),W-M,11,{align:'right'});doc.setDrawColor(200,210,214);doc.line(M,12.5,W-M,12.5)}
+    doc.setDrawColor(200,210,214);doc.line(M,286,W-M,286);
+    doc.text('Generated from Case Desk on '+new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),M,290);
+    doc.text('Page '+i+' of '+n,W-M,290,{align:'right'})}
+  return doc.output('blob');
+}
+function reportFile(rep){return 'CFSL_'+(rep.type==='weekly'?'Weekly':'Monthly')+'_Report_'+rep.from+'_to_'+rep.to+(rep.officer?'_'+(rep.officer==='none'?'Unassigned':(OFF[rep.officer]||'').replace(/[^A-Za-z]+/g,'')):'')+'.pdf'}
+async function downloadReport(rep){const b=makePDF(rep);if(b)await saveFile(reportFile(rep),b)}
+
+/*SAVEFILE*/
+async function saveFile(name,blob){
+  let d=null;try{d=await claude.use('downloads')}catch(e){}
+  if(!d){toast('Downloads are not available in this view');return false}
+  try{await d.save({filename:name,data:blob});toast('Saved '+name);return true}catch(e){if(e&&e.code!=='declined')toast('Could not save the file');return false}
+}
+/*END SAVEFILE*/
+
+let repState={type:'weekly',idx:0,officer:''};
+function curPeriod(){const ps=periods(repState.type);return ps[Math.min(repState.idx,ps.length-1)]}
+function renderReports(){
+  const v=$('#v-reports');if(!v)return;
+  const pSel=$('#rpPeriod');const ps=periods(repState.type);
+  if(pSel.dataset.type!==repState.type||pSel.options.length!==ps.length){pSel.replaceChildren();ps.forEach((p,i)=>{const o=el('option','',p.label);o.value=String(i);pSel.append(o)});pSel.dataset.type=repState.type}
+  pSel.value=String(repState.idx);$('#rpType').value=repState.type;$('#rpOff').value=repState.officer;
+  const p=curPeriod();const rep=buildReport(repState.type,p,repState.officer);
+  const ta=$('#rpRnd');if(document.activeElement!==ta){ta.value=(rndDocs[p.key]||{}).text||''}ta.dataset.key=p.key;ta.disabled=!canWrite;
+  $('#rpRndHint').textContent='Saved with '+(repState.type==='weekly'?'the week of ':'')+rep.label+'. It appears in the PDF as the Research & Development section.';
+  const S=$('#rpSummary');S.replaceChildren();
+  rep.summary.forEach(([a,b])=>{const r=el('div','li');r.style.gridTemplateColumns='minmax(0,1fr) auto';const t=el('div','t',a);if(a.startsWith('   ')){t.style.paddingLeft='16px';t.textContent=a.trim()}r.append(t,el('b','',String(b)));S.append(r)});
+  const C=$('#rpCounts');C.replaceChildren();
+  [['Received',rep.received.length],['Reports finalised',rep.reported.length],['Copies handed over',rep.copies.length],['Work entries',rep.work.length],['Pending',rep.pending.length]].forEach(([a,b])=>{const d=el('div','stat');d.append(el('b','',String(b)),el('span','',a));C.append(d)});
+  const pub=reportsPub[p.key+(repState.officer?'-'+repState.officer:'')];
+  $('#rpPubNote').textContent=pub?'Published on '+new Date(pub.publishedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+'. Publishing again replaces it.':'Not published yet.';
+  $('#rpPublish').disabled=!canWrite;
+  // history
+  const H=$('#rpHistory');H.replaceChildren();
+  const hs=Object.entries(reportsPub).sort((a,b)=>a[1].publishedAt<b[1].publishedAt?1:-1);
+  if(!hs.length)H.append(el('div','empty','No reports published yet. Choose a period above and select Publish report.'));
+  hs.forEach(([id,r])=>{const row=el('div','li');const t=el('div','t');t.append(el('b','',(r.type==='weekly'?'Weekly report · ':'Monthly report · ')+r.label),el('span','',(r.officerName?r.officerName+' · ':'All officers · ')+'Published '+new Date(r.publishedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})));
+    const b=el('button','','Download PDF');b.onclick=()=>downloadReport(r.rep);
+    row.append(el('i','stripe '+(r.type==='weekly'?'info':'ok')),t,b);H.append(row)});
+}
+function wireReports(){
+  $('#rpType').onchange=()=>{repState.type=$('#rpType').value;repState.idx=0;renderReports()};
+  $('#rpPeriod').onchange=()=>{repState.idx=Number($('#rpPeriod').value);renderReports()};
+  $('#rpOff').onchange=()=>{repState.officer=$('#rpOff').value;renderReports()};
+  const ta=$('#rpRnd');
+  const saveRnd=async()=>{const key=ta.dataset.key;const text=ta.value;if(((rndDocs[key]||{}).text||'')===text)return;rndDocs[key]={text,updatedAt:new Date().toISOString()};
+    if(!db)return;try{await db.doc('rnd/'+key).set(rndDocs[key]);$('#rpRndSaved').textContent='Saved'}catch(e){handleErr(e)}};
+  ta.oninput=()=>{$('#rpRndSaved').textContent='';clearTimeout(ta._t);ta._t=setTimeout(saveRnd,1200)};ta.onchange=saveRnd;
+  $('#rpDownload').onclick=async()=>{await saveRnd();const p=curPeriod();downloadReport(buildReport(repState.type,p,repState.officer))};
+  $('#rpPublish').onclick=async()=>{await saveRnd();const p=curPeriod();const rep=buildReport(repState.type,p,repState.officer);
+    const id=p.key+(repState.officer?'-'+repState.officer:'');const rec={type:rep.type,key:p.key,label:rep.label,officer:rep.officer,officerName:rep.officerName,publishedAt:new Date().toISOString(),rep};
+    if(db){try{await db.doc('reports/'+id).set(rec);reportsPub[id]=rec;logAct(null,'Report published: '+(rep.type==='weekly'?'weekly, ':'monthly, ')+rep.label);renderReports()}catch(e){handleErr(e);return}}
+    downloadReport(rep)};
+}
+
+wireReports();
+/* ---------- courts & crime scenes ---------- */
+let courtsMap={}, scenesMap={};
+const CPURPOSE=[['evidence','Evidence / deposition'],['cross','Cross-examination'],['summons','Summons appearance'],['exhibits','Production of exhibits'],['other','Other']];
+const CSTATUS=[['upcoming','Upcoming'],['attended','Attended'],['adjourned','Adjourned'],['exempted','Exempted / not required']];
+const SSTATUS=[['planned','Planned'],['visited','Visited'],['report','Report submitted']];
+const LBL=a=>Object.fromEntries(a);
+const courtDate=r=>r.status==='adjourned'&&r.nextDate?r.nextDate:r.date;
+const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+function caseOptions(){return [['','Not in my register']].concat(list().sort((a,b)=>(b.sno||0)-(a.sno||0)).map(c=>[c.id,(c.sno??'')+' · '+c.cfsl]))}
+function caseRefText(r){const c=r.caseId&&cases[r.caseId];return c?c.cfsl:(r.caseRef||'—')}
+async function saveDoc(col,map,id,data,log){
+  if(!db){toast('Saving is unavailable in this view');return false}
+  const before=map[id];map[id]=data;renderAll();
+  try{await db.doc(col+'/'+id).set(data);if(log)logAct(data.caseId||null,log);return true}catch(e){if(before)map[id]=before;else delete map[id];renderAll();handleErr(e);return false}
+}
+async function delDoc(col,map,id,log){const before=map[id];delete map[id];renderAll();try{await db.doc(col+'/'+id).delete();logAct(before&&before.caseId||null,log)}catch(e){map[id]=before;renderAll();handleErr(e)}}
+function openItem(kind,id){$('#sheet').dataset.item='';openCase='__'+kind+':'+(id||'new');confirmDel=null;renderSheet();$('#scrim').hidden=false;$('#sheet').hidden=false;setTimeout(()=>{const f=$('#sheet .sb input,#sheet .sb select');f&&f.focus()},0)}
+
+/* courts tab */
+function renderCourts(){
+  const U=$('#crtUp'),P=$('#crtPast');if(!U)return;U.replaceChildren();P.replaceChildren();
+  const t=todayISO();const all=Object.entries(courtsMap);
+  const up=all.filter(([,r])=>r.status==='upcoming'||r.status==='adjourned').sort((a,b)=>courtDate(a[1])<courtDate(b[1])?-1:1);
+  const past=all.filter(([,r])=>r.status==='attended'||r.status==='exempted').sort((a,b)=>courtDate(a[1])<courtDate(b[1])?1:-1);
+  if(!up.length)U.append(el('div','empty','No court dates coming up. Add one when a summons arrives.'));
+  up.forEach(([id,r])=>U.append(courtLine(id,r)));
+  if(!past.length)P.append(el('div','empty','Attended court dates will appear here.'));
+  past.slice(0,60).forEach(([id,r])=>P.append(courtLine(id,r)));
+  const soon=up.filter(([,r])=>courtDate(r)&&daysBetween(t,courtDate(r))<=3).length;
+  const tc=$('#tcCrt');tc.textContent=String(up.length);tc.className='count'+(soon?' hot':'');
+}
+function courtLine(id,r){
+  const row=el('div','li');row.style.cursor='pointer';row.tabIndex=0;row.onclick=()=>openItem('court',id);row.onkeydown=e=>{if(e.key==='Enter')openItem('court',id)};
+  const d=courtDate(r);const open=r.status==='upcoming'||r.status==='adjourned';const st=open?dlState(d):null;
+  const tt=el('div','t');tt.append(el('b','',[r.court||'Court',r.place].filter(Boolean).join(', ')),el('span','',[fmt(d)+(r.time?' · '+r.time:''),LBL(CPURPOSE)[r.purpose]||'',caseRefText(r)].filter(Boolean).join(' · ')));
+  const right=el('div','rowbtns');
+  if(open&&d&&d<todayISO())right.append(el('span','chip bad','Update status'));
+  else if(open)right.append(el('span','chip '+(st||'normal'),r.status==='adjourned'?'Adjourned · '+dlLabel(d):dlLabel(d)||'Upcoming'));
+  else right.append(el('span','chip '+(r.status==='attended'?'ok':'normal'),LBL(CSTATUS)[r.status]));
+  row.append(el('i','stripe '+(open?(st||'info'):'ok')),tt,right);return row;
+}
+function renderCourtSheet(id){
+  const sh=$('#sheet');const isNew=id==='new';const r=isNew?{status:'upcoming',purpose:'evidence',date:addDays(todayISO(),7)}:(courtsMap[id]||null);
+  if(!r){closeSheet();return}
+  sh.replaceChildren();
+  const head=el('div','sh');const t=el('div','ttl');const h=el('h2','',isNew?'New court date':'Court date');h.id='shTitle';t.append(h,el('p','sub','Summons, deposition or cross-examination you need to attend'));const x=el('button','ghost','Close');x.onclick=closeSheet;head.append(t,x);
+  const body=el('div','sb');const f=el('form');f.style.display='flex';f.style.flexDirection='column';f.style.gap='14px';
+  const fs=el('div','fields');const v={};
+  const I=(k,l,type,ph,full)=>{const i=el('input');i.type=type;i.id='cr-'+k;i.value=r[k]||'';if(ph)i.placeholder=ph;i.disabled=!canWrite;v[k]=i;fs.append(fieldEl(l,i,full));return i};
+  const S=(k,l,opts,full)=>{const s=el('select');s.id='cr-'+k;opts.forEach(([a,b])=>{const o=el('option','',b);o.value=a;s.append(o)});s.value=r[k]||opts[0][0];s.disabled=!canWrite;v[k]=s;fs.append(fieldEl(l,s,full));return s};
+  S('caseId','Case',caseOptions(),true);
+  const ref=I('caseRef','Case reference (if not in register)','text','e.g. RC/FIR no., old CFSL no.',true);
+  I('court','Court','text',"e.g. Court of Special Judge (CBI)-03",true);I('place','Place','text','e.g. Rouse Avenue Courts, New Delhi');I('courtNo','Court room / judge','text','e.g. Court no. 304');
+  I('date','Date of appearance','date');I('time','Time','time');
+  S('purpose','Purpose',CPURPOSE);I('summonsDate','Summons received on','date');
+  const st=S('status','Status',CSTATUS);const nd=I('nextDate','Next date of hearing','date');
+  const syncVis=()=>{ref.parentElement.hidden=!!v.caseId.value;nd.parentElement.hidden=st.value!=='adjourned'};v.caseId.onchange=syncVis;st.onchange=syncVis;syncVis();
+  const ta=el('textarea');ta.id='cr-notes';ta.value=r.notes||'';ta.placeholder='Documents to carry, exhibits to produce, outcome';ta.disabled=!canWrite;fs.append(fieldEl('Notes',ta,true));
+  const btns=el('div','rowbtns');const sv=el('button','primary',isNew?'Add court date':'Save changes');sv.type='submit';sv.disabled=!canWrite;btns.append(sv);
+  if(!isNew){const del=el('button','ghost',confirmDel===id?'Confirm: delete this court date':'Delete');if(confirmDel===id)del.style.color='var(--bad)';del.type='button';del.disabled=!canWrite;
+    del.onclick=()=>{if(confirmDel!==id){confirmDel=id;renderCourtSheet(id);return}confirmDel=null;closeSheet();delDoc('courts',courtsMap,id,'Court date deleted: '+(r.court||''))};btns.append(del)}
+  f.append(fs,btns);
+  f.onsubmit=async e=>{e.preventDefault();const d={};Object.entries(v).forEach(([k,i])=>d[k]=(i.value||'').trim()||null);d.notes=ta.value.trim()||null;if(d.caseId)d.caseRef=null;
+    if(!d.date){toast('Enter the date of appearance');return}
+    d.updatedAt=new Date().toISOString();d.createdAt=r.createdAt||d.updatedAt;
+    const nid=isNew?newId('ct'):id;const prev=r.status;
+    const log=isNew?'Court date added: '+(d.court||'court')+', '+fmt(d.date):(prev!==d.status?'Court date '+LBL(CSTATUS)[d.status].toLowerCase()+': '+(d.court||''):'Court date updated: '+(d.court||''));
+    if(await saveDoc('courts',courtsMap,nid,d,log)){toast(isNew?'Court date added':'Saved');closeSheet()}};
+  body.append(f);sh.append(head,body);
+}
+
+/* crime scene tab */
+function teamNames(){const s=new Set();Object.values(scenesMap).forEach(r=>(r.team||[]).forEach(n=>s.add(n)));OFFICERS.forEach(o=>s.add(o[1]));if(typeof SIGN!=='undefined'&&SIGN.name)s.add(SIGN.name);return [...s].filter(Boolean).sort()}
+function renderScenes(){
+  const L=$('#scnList');if(!L)return;L.replaceChildren();
+  const f=$('#scnFilter').value;
+  const all=Object.entries(scenesMap).filter(([,r])=>!f||r.status===f).sort((a,b)=>(a[1].date||'')<(b[1].date||'')?1:-1);
+  if(!all.length)L.append(el('div','empty',Object.keys(scenesMap).length?'No visits with this status.':'No crime scene visits yet. Add one when a requisition comes in.'));
+  all.forEach(([id,r])=>{const row=el('div','li');row.style.cursor='pointer';row.tabIndex=0;row.onclick=()=>openItem('scene',id);row.onkeydown=e=>{if(e.key==='Enter')openItem('scene',id)};
+    const tt=el('div','t');tt.append(el('b','',r.place||'Crime scene'),el('span','',[fmt(r.date)+(r.time?' · '+r.time:''),r.agency,caseRefText(r)].filter(x=>x&&x!=='—').join(' · ')));
+    if((r.team||[]).length){const tm=el('div','rowbtns');tm.style.marginTop='4px';tm.style.gap='4px';r.team.forEach(n=>tm.append(el('span','chip normal',n)));tt.append(tm)}
+    const sc=r.status==='planned'?(dlState(r.date)||'info'):r.status==='visited'?'warn':'ok';
+    row.append(el('i','stripe '+sc),tt,el('span','chip '+sc,LBL(SSTATUS)[r.status]||'Planned'));L.append(row)});
+  const n=Object.values(scenesMap).filter(r=>r.status==='planned').length;$('#tcScn').textContent=String(n);
+}
+function renderSceneSheet(id){
+  const sh=$('#sheet');const isNew=id==='new';
+  if(!renderSceneSheet.draft||renderSceneSheet.draftId!==id){const src=isNew?{status:'planned',date:todayISO(),team:SIGN&&SIGN.name?[SIGN.name]:[]}:(scenesMap[id]||null);if(!src){closeSheet();return}renderSceneSheet.draft=JSON.parse(JSON.stringify(src));renderSceneSheet.draftId=id}
+  const r=renderSceneSheet.draft;
+  sh.replaceChildren();
+  const head=el('div','sh');const t=el('div','ttl');const h=el('h2','',isNew?'New crime scene visit':'Crime scene visit');h.id='shTitle';t.append(h,el('p','sub','Scene examination and the team that attended'));const x=el('button','ghost','Close');x.onclick=()=>{renderSceneSheet.draft=null;closeSheet()};head.append(t,x);
+  const body=el('div','sb');const f=el('form');f.style.display='flex';f.style.flexDirection='column';f.style.gap='14px';
+  const fs=el('div','fields');
+  const bind=(k,i)=>{i.value=r[k]||'';i.disabled=!canWrite;i.oninput=i.onchange=()=>{r[k]=i.value}};
+  const I=(k,l,type,ph,full)=>{const i=el('input');i.type=type;i.id='sc-'+k;if(ph)i.placeholder=ph;bind(k,i);fs.append(fieldEl(l,i,full));return i};
+  const S=(k,l,opts,full)=>{const s=el('select');s.id='sc-'+k;opts.forEach(([a,b])=>{const o=el('option','',b);o.value=a;s.append(o)});bind(k,s);if(!r[k])s.value=opts[0][0];fs.append(fieldEl(l,s,full));return s};
+  const cs=S('caseId','Related case',caseOptions(),true);
+  const ref=I('caseRef','FIR / RC no. (if not in register)','text','e.g. FIR 0329/26, PS Saket',true);
+  I('agency','Police station / agency','text','e.g. PS Saket / CBI EOW');I('requisition','Requisition from','text','e.g. SHO / IO letter no.');
+  I('place','Place of crime scene','text','Full address of the scene',true);
+  I('date','Date of visit','date');I('time','Time','time');
+  S('status','Status',SSTATUS);I('reportDate','Scene report submitted on','date');
+  cs.addEventListener('change',()=>{ref.parentElement.hidden=!!cs.value});ref.parentElement.hidden=!!r.caseId;
+  // team
+  const tb=el('div','box');tb.append(el('p','minihead','Team members visiting'));
+  const chips=el('div','rowbtns');chips.style.gap='6px';
+  (r.team||[]).forEach((n,i)=>{const c=el('span','chip info',n);const xb=el('button','ghost','×');xb.type='button';xb.setAttribute('aria-label','Remove '+n);xb.style.padding='0 4px';xb.disabled=!canWrite;xb.onclick=()=>{r.team.splice(i,1);renderSceneSheet(id)};c.append(xb);chips.append(c)});
+  if(!(r.team||[]).length)chips.append(el('span','muted','No team members added yet'));
+  const dl=el('datalist');dl.id='teamList';teamNames().forEach(n=>{const o=el('option');o.value=n;dl.append(o)});
+  const ar=el('div','addrow');const ti=el('input');ti.type='text';ti.id='sc-teamAdd';ti.placeholder='Name and designation, e.g. Sh. RS Rana';ti.setAttribute('list','teamList');ti.disabled=!canWrite;
+  const ab=el('button','','Add member');ab.type='button';ab.disabled=!canWrite;
+  const addM=()=>{const n=ti.value.trim();if(!n)return;r.team=(r.team||[]).filter(x=>x!==n).concat([n]);renderSceneSheet(id);setTimeout(()=>$('#sc-teamAdd')?.focus(),0)};
+  ab.onclick=addM;ti.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addM()}};
+  const quick=el('div','rowbtns');quick.style.gap='6px';teamNames().filter(n=>!(r.team||[]).includes(n)).slice(0,8).forEach(n=>{const q=el('button','ghost','+ '+n);q.type='button';q.disabled=!canWrite;q.onclick=()=>{r.team=(r.team||[]).concat([n]);renderSceneSheet(id)};quick.append(q)});
+  ar.append(ti,ab);tb.append(chips,ar,quick,dl);
+  const dv=el('textarea');dv.id='sc-devices';dv.placeholder='e.g. 2 mobile phones, 1 DVR, 1 laptop seized and sealed';bind('devices',dv);
+  const nt=el('textarea');nt.id='sc-notes';nt.placeholder='Observations, photography, hash values taken on site';bind('notes',nt);
+  const fs2=el('div','fields');fs2.append(fieldEl('Devices collected / examined at scene',dv,true),fieldEl('Notes',nt,true));
+  const btns=el('div','rowbtns');const sv=el('button','primary',isNew?'Add visit':'Save changes');sv.type='submit';sv.disabled=!canWrite;btns.append(sv);
+  if(!isNew){const del=el('button','ghost',confirmDel===id?'Confirm: delete this visit':'Delete');if(confirmDel===id)del.style.color='var(--bad)';del.type='button';del.disabled=!canWrite;
+    del.onclick=()=>{if(confirmDel!==id){confirmDel=id;renderSceneSheet(id);return}confirmDel=null;renderSceneSheet.draft=null;closeSheet();delDoc('scenes',scenesMap,id,'Crime scene visit deleted: '+(r.place||''))};btns.append(del)}
+  f.append(fs,tb,fs2,btns);
+  f.onsubmit=async e=>{e.preventDefault();if(!r.date){toast('Enter the date of visit');return}
+    const d={};['caseId','caseRef','agency','requisition','place','date','time','status','reportDate','devices','notes'].forEach(k=>d[k]=(r[k]||'').trim()||null);if(d.caseId)d.caseRef=null;d.status=d.status||'planned';
+    d.team=(r.team||[]).slice();d.updatedAt=new Date().toISOString();d.createdAt=r.createdAt||d.updatedAt;
+    const nid=isNew?newId('cs'):id;const prev=(scenesMap[id]||{}).status;
+    const log=isNew?'Crime scene visit added: '+(d.place||'')+', '+fmt(d.date):(prev!==d.status?'Crime scene '+LBL(SSTATUS)[d.status].toLowerCase()+': '+(d.place||''):'Crime scene visit updated: '+(d.place||''));
+    if(await saveDoc('scenes',scenesMap,nid,d,log)){renderSceneSheet.draft=null;toast(isNew?'Visit added':'Saved');closeSheet()}};
+  body.append(f);sh.append(head,body);
+}
+$('#crtAdd').onclick=()=>openItem('court');
+$('#scnAdd').onclick=()=>{renderSceneSheet.draft=null;openItem('scene')};
+$('#scnFilter').onchange=renderScenes;
+
+$('#autoSave').onchange=async()=>{const want=$('#autoSave').checked;if(want&&Object.keys(pending).length){const ok=await saveAll(true);if(!ok){$('#autoSave').checked=false;return}}autosave=want;try{localStorage.setItem('casedesk-autosave',want?'1':'0')}catch(e){}updateSaveUI();toast(want?'Autosave on: changes save as you make them':'Autosave off: use Save to keep your changes')};
+$('#btnSave').onclick=()=>saveAll();$('#saveBarSave').onclick=()=>saveAll();$('#saveBarDiscard').onclick=discardAll;
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveAll()}});
+window.addEventListener('beforeunload',e=>{flushField();if(Object.keys(pending).length){e.preventDefault();e.returnValue=''}});
+$('#sheet').addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;const sh=$('#sheet');const a=document.activeElement;
+  if(!a||!a.id||!sh.contains(a)||!/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return;
+  e.preventDefault();const id=a.id,back=e.shiftKey;a.blur();
+  const cur=document.getElementById(id);
+  const fs=[...sh.querySelectorAll('input,select,textarea,button,summary,a[href]')].filter(x=>!x.disabled&&x.offsetParent!==null&&x.type!=='hidden');
+  const i=fs.indexOf(cur);const nx=i<0?fs[0]:fs[i+(back?-1:1)];if(nx)nx.focus();else if(cur)cur.focus();
+});
+updateSaveUI();
+/* ---------- tabs ---------- */
+const TABS=['overview','cases','flow','courts','scenes','reminders','deadlines','activity','reports'];
+function route(){const h=location.hash.slice(1);const t=TABS.includes(h)?h:'overview';
+  TABS.forEach(x=>{$('#v-'+x).hidden=x!==t});document.querySelectorAll('#tabs a').forEach(a=>{if(a.dataset.tab===t)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});}
+window.addEventListener('hashchange',route);
+
+function renderAll(){
+  renderOverview();renderExOverview();renderCases();renderBoard();renderChainPipe();renderReminders();renderDeadlines();renderActivity();renderCourts();renderScenes();renderReports();
+  $('#tcCases').textContent=loaded.cases?String(openList().length):'—';
+  const ro=Object.values(reminders).filter(r=>!r.done&&dlState(r.due)!=='ok').length;const tr=$('#tcRem');tr.textContent=loaded.rem?String(Object.values(reminders).filter(r=>!r.done).length):'—';tr.className='count'+(ro?' hot':'');
+  if(openCase&&openCase!=='__new')renderSheet();
+}
+route();renderAll();
+
+/* ---------- connect ---------- */
+(async()=>{
+  try{db=await claude.use('db')}catch(e){db=null}
+  if(!db){const b=$('#dbBanner');b.textContent='Case data could not load in this view. Sign in to claude.ai and reopen this page.';b.hidden=false;return}
+  try{user=await claude.use('user');if(user){const c=await user.can('data.write');if(c===false)canWrite=false}}catch(e){}
+  db.collection('cases').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=Object.assign({id:d.id},d.data()));Object.keys(pending).forEach(id=>{if(m[id])m[id]=Object.assign({},m[id],pending[id])});cases=m;loaded.cases=true;renderAll()},e=>handleErr(e));
+  db.collection('reminders').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=Object.assign({},d.data()));reminders=m;loaded.rem=true;renderAll()},e=>{});
+  db.collection('activity').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());actDays=m;loaded.act=true;renderActivity();renderReports()},e=>{});
+  db.collection('reports').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());reportsPub=m;renderReports()},e=>{});
+  db.collection('courts').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());courtsMap=m;renderAll()},e=>{});
+  db.collection('scenes').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());scenesMap=m;renderAll()},e=>{});
+  db.collection('rnd').onSnapshot(s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());rndDocs=m;renderReports()},e=>{});
+  if(!canWrite){const b=$('#dbBanner');b.textContent='You have view access. Ask the owner for Contributor access to tick steps and add reminders.';b.hidden=false;renderAll()}
+})();
+})();
+</script>
+
+</body></html>
