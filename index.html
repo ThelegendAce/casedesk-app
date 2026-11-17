@@ -383,7 +383,7 @@ details.ex .sm{flex:1;min-width:0;font-weight:600;font-size:13px;overflow-wrap:a
 <div class="toast" id="toast" hidden></div>
 
 <script src="shim.js"></script><script src="jspdf.umd.min.js"></script>
-<script src="jspdf.plugin.autotable.min.js"></script><script src="jszip.min.js"></script>
+<script src="jspdf.plugin.autotable.min.js"></script><script src="jszip.min.js"></script><script src="ocr/tesseract.min.js"></script><script src="extras.js"></script>
 <script>
 (function(){
 const STEPS=[
@@ -1508,6 +1508,7 @@ function tabDocs(c,body){
   const area=(id,val,ph,on)=>{const t=el('textarea');t.id=id;t.value=val||'';t.placeholder=ph||'';t.disabled=!canWrite;t.onchange=()=>on(t.value);return t};
   const dl=el('div','box');dl.append(el('h2','','Prepare documents'),el('p','sub','Each button fills your Word format with this case and saves a .docx to finish and print in Word. Dates come from the Details tab.'));
   const bt=el('div','rowbtns');DOCS.forEach(([k,l])=>{const b=el('button',k==='report'?'primary':'',l);b.type='button';b.onclick=()=>downloadDoc(k,cases[c.id]);bt.append(b)});dl.append(bt);body.append(dl);
+  if(typeof window.CASEDESK_SCAN==='function'){const sb=el('div','box');body.append(sb);try{window.CASEDESK_SCAN(sb,{id:c.id,canWrite,docs:()=>JSON.parse(JSON.stringify((cases[c.id]||{}).docs||{})),apply:(patch,log)=>setD(patch,log)})}catch(e){}}
   const b1=el('div','box');b1.append(el('h2','','Forwarding authority and reference'));const f1=el('div','fields');
   f1.append(fieldEl('Addressed to (one line per row)',area('dc-to',D.to,'The Head of Branch,\nCentral Bureau of Investigation, ...',v=>setD({to:v.trim()||null},'Addressee updated')),true));
   F(f1,'memoNo','Memo / reference no.','text','e.g. 123/RC0000000A0000/CBI/City',true);F(f1,'memoDate','Memo dated','date');F(f1,'rcDate','RC / FIR dated','date');

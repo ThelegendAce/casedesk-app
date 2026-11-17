@@ -1,7 +1,8 @@
 /* Keeps a copy of the app on the device so it opens without internet.
    Bump VERSION whenever any app file changes. */
-const VERSION = 'casedesk-v4';
-const FILES = ['./', 'index.html', 'shim.js', 'jspdf.umd.min.js', 'jspdf.plugin.autotable.min.js', 'jszip.min.js',
+const VERSION = 'casedesk-v5';
+const FILES = ['./', 'index.html', 'shim.js', 'jspdf.umd.min.js', 'jspdf.plugin.autotable.min.js', 'jszip.min.js', 'extras.js',
+  'ocr/tesseract.min.js', 'ocr/worker.min.js', 'ocr/tesseract-core-simd-lstm.wasm.js', 'ocr/tesseract-core-lstm.wasm.js', 'ocr/eng.traineddata.gz',
   'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
