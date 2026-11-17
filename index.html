@@ -1470,7 +1470,8 @@ function docData(c){
 
 async function formatBytes(name){
   if(typeof window.CASEDESK_FORMATS==='function'){const b=await window.CASEDESK_FORMATS(name);if(b)return b;throw new Error('formats')}
-  const r=await fetch('formats/'+name+'.docx');if(!r.ok)throw new Error('formats');return r.arrayBuffer()}
+  if(!formatBytes.pack){const r=await fetch('formats.json');if(!r.ok)throw new Error('formats');formatBytes.pack=await r.json()}
+  const b64=formatBytes.pack[name];if(!b64)throw new Error('formats');const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer}
 async function buildDoc(name,c){
   const zip=await JSZip.loadAsync(await formatBytes(name));const data=docData(c);
   for(const f of Object.keys(zip.files)){if(/^word\/(document|header\d*|footer\d*)\.xml$/.test(f))zip.file(f,fillXml(await zip.file(f).async('string'),data))}
@@ -1480,9 +1481,27 @@ async function downloadDoc(name,c){
   try{const b=await buildDoc(name,c);const label=DOCS.find(d=>d[0]===name)[1].replace(/\s+/g,'_');await saveFile((c.cfsl||'case').replace(/[^A-Za-z0-9]+/g,'-')+'_'+label+'.docx',b);logAct(c.id,'Document prepared: '+DOCS.find(d=>d[0]===name)[1])}
   catch(e){toast(e&&e.message==='formats'?'Formats are not loaded on this device yet':'Could not prepare the document')}}
 
-window.__cdDocs={buildDoc,docData};
+window.__cdDocs=location.hostname==='localhost'?{buildDoc,docData}:undefined;
 /* --- Documents tab in the case sheet --- */
 const openDocP=new Set();
+/* Copies devices already logged under Exhibits & analysis into Parcel-1, so they are not typed twice */
+const EXMAP={mobile:'mobile',tablet:'mobile',sim:'sim',mem:'mc',pen:'pd',hdd:'hdd',ssd:'hdd',laptop:'laptop',desktop:'laptop'};
+function importExhibits(c){
+  const np=JSON.parse(JSON.stringify((c.docs||{}).parcels||[]));
+  if(!np.length)np.push({colour:'Yellow',container:'paper envelope',items:[]});
+  const have=new Set(np.flatMap(p=>(p.items||[]).map(x=>x.mark)));let n=0;
+  const tv=q=>q&&q.name?q.name+(q.version?' (Ver.'+q.version+')':''):null;
+  exList(c).forEach(x=>{const mark=(x.mark||'').trim();if(!mark||have.has(mark))return;
+    const t=EXMAP[x.type]||'other';const tools=Array.isArray(x.tools)?x.tools:[];
+    const it={type:t,mark,make:x.make||null};const sn=(x.serial||'').trim()||null;
+    if(t==='sim')it.iccid=sn;else if(t==='mobile'&&sn&&/^\d{15}$/.test(sn))it.imei1=sn;else it.serial=sn;
+    if(num(x.cap))it.storage=num(x.cap)+' GB';
+    const ex=tools.find(q=>q.stage==='extraction'),an=tools.find(q=>q.stage==='analysis');if(tv(ex))it.tool=tv(ex);if(tv(an))it.reportTool=tv(an);
+    const m=/^(.+?)\/(S\d+|MC)$/i.exec(mark);if(m&&(t==='sim'||t==='mc'))it.parent=m[1];
+    (np[0].items=np[0].items||[]).push(it);have.add(mark);n++});
+  if(!n){toast('Every device from Exhibits & analysis is already listed');return}
+  openDocP.add(0);saveCase(c.id,{docs:Object.assign({},c.docs||{},{parcels:np})},'Imported '+n+' devices into documents');
+  toast(n+' device'+(n>1?'s':'')+' added to Parcel-1. Move any to another parcel below.')}
 function tabDocs(c,body){
   const D=c.docs||{};const setD=(patch,log)=>saveCase(c.id,{docs:Object.assign({},cases[c.id].docs||{},patch)},log);
   const F=(box,k,l,type,ph,full)=>box.append(fieldEl(l,inp('dc-'+k,type||'text',D[k]||'',v=>setD({[k]:v.trim()||null},l+' updated'),ph),full));
@@ -1502,6 +1521,7 @@ function tabDocs(c,body){
   // parcels and exhibits
   const P=(D.parcels||[]);const saveP=(np,log)=>setD({parcels:np},log);const cp=()=>JSON.parse(JSON.stringify(cases[c.id].docs&&cases[c.id].docs.parcels||[]));
   const b3=el('div','box');b3.append(el('h2','','Parcels and exhibits'),el('p','sub','Add each parcel, then the devices inside it in the order they should appear. For a SIM or memory card, enter the marking of the phone it was housed in.'));
+  if(exList(c).length){const imp=el('button','','Import '+exList(c).length+' device'+(exList(c).length>1?'s':'')+' from Exhibits & analysis');imp.type='button';imp.id='dc-import';imp.disabled=!canWrite;imp.style.alignSelf='flex-start';imp.onclick=()=>importExhibits(cases[c.id]);b3.append(imp)}
   P.forEach((p,pi)=>{const d=el('details','ex');d.open=openDocP.has(pi);d.ontoggle=()=>{if(d.open)openDocP.add(pi);else openDocP.delete(pi)};
     const s=el('summary');s.append(el('span','sm','Parcel-'+(pi+1)+(p.label?' · '+p.label:'')),el('span','chip normal',(p.items||[]).length+' exhibits'));d.append(s);
     const eb=el('div','exbody');const pf=el('div','fields');
@@ -1512,6 +1532,7 @@ function tabDocs(c,body){
       const hd=el('div','ct');hd.append(el('b','',(it.mark||'New exhibit')+' · '+(DTNAME[it.type]||'')));const rm=el('button','ghost','Remove');rm.type='button';rm.disabled=!canWrite;rm.onclick=()=>{const np=cp();np[pi].items.splice(ii,1);saveP(np,'Exhibit removed')};hd.append(rm);ib.append(hd);
       const xf=el('div','fields');const X=(k,l,ph,full)=>xf.append(fieldEl(l,inp(id+k,'text',it[k]||'',v=>upd(k,v),ph),full));
       xf.append(fieldEl('Type',sel(id+'type',DTYPES,it.type||'mobile',v=>upd('type',v))));X('mark','Marked in laboratory','e.g. M1 or M1/S1');
+      if(P.length>1)xf.append(fieldEl('Parcel',sel(id+'pp',P.map((_,j)=>[String(j),'Parcel-'+(j+1)]),String(pi),v=>{const to=Number(v);if(to===pi)return;const np=cp();const [mv]=np[pi].items.splice(ii,1);(np[to].items=np[to].items||[]).push(mv);openDocP.add(to);saveP(np,'Exhibit '+(it.mark||'')+' moved to Parcel-'+(to+1))})));
       if(it.type==='sim'){X('parent','Housed in (marking)','e.g. M1');X('vendor','Vendor','e.g. Airtel 4G');X('iccid','ICCID','',true)}
       else{if(it.type!=='mobile')X('parent','Housed in (marking)','blank if separate');X('make','Make');X('modelName','Model name');
         if(it.type==='mobile'){X('modelNo','Model no.');X('imei1','IMEI 1');X('imei2','IMEI 2');X('locked','Locked / unlocked','UNLOCKED')}
