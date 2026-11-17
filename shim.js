@@ -1,15 +1,23 @@
 /* Offline replacement for the claude.ai runtime: the page's database, user and
-   downloads calls are served from this browser's own storage. Nothing is sent anywhere. */
+   downloads calls are served from this browser's own storage. Nothing is sent anywhere.
+   Used by the phone web app and by the desktop offline file. */
 (function () {
   var KEY = 'casedesk-db-v1';
   var state = null;
   var subs = {};
+  var FORMATS = ['report', 'worksheet', 'forwarding', 'notesheet', 'bsa63'];
+  var KNOWN = ['cases', 'reminders', 'activity', 'reports', 'courts', 'scenes', 'rnd'];
+  // the desktop file carries the Word formats inside it; the public phone app does not
+  var BUILT_IN = !!window.CASEDESK_FORMATS_PACK;
 
   function load() {
     var raw = null;
     try { raw = localStorage.getItem(KEY); } catch (e) {}
     if (raw) { try { state = JSON.parse(raw); } catch (e) { state = null; } }
-    if (!state || typeof state !== 'object') { state = { cases: {} }; persist(); }
+    if (!state || typeof state !== 'object') {
+      state = window.CASEDESK_SEED ? clone(window.CASEDESK_SEED) : { cases: {} };
+      persist();
+    }
   }
   function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); return true; }
@@ -17,7 +25,7 @@
   }
   function note(msg) {
     var t = document.getElementById('toast'); if (!t) return;
-    t.textContent = msg; t.hidden = false; clearTimeout(note._t); note._t = setTimeout(function () { t.hidden = true; }, 2600);
+    t.textContent = msg; t.hidden = false; clearTimeout(note._t); note._t = setTimeout(function () { t.hidden = true; }, 3200);
   }
   function clone(v) { return v === undefined ? v : JSON.parse(JSON.stringify(v)); }
   function col(name) { return state[name] || (state[name] = {}); }
@@ -58,8 +66,9 @@
      an ordinary download elsewhere. */
   async function deliver(name, blob) {
     var file = null;
+    var touch = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     try { file = new File([blob], name, { type: blob.type || 'application/octet-stream' }); } catch (e) {}
-    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (touch && file && navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file] }); return; }
       catch (e) { if (e && e.name === 'AbortError') return; }
     }
@@ -82,57 +91,7 @@
     }
   };
 
-  function importData(raw) {
-    var s = JSON.parse(raw);
-    if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('bad file');
-    var known = ['cases', 'reminders', 'activity', 'reports', 'courts', 'scenes', 'rnd'];
-    if (!Object.keys(s).some(function (k) { return known.indexOf(k) >= 0; })) throw new Error('bad file');
-    state = s; if (!persist()) throw new Error('not saved');
-    known.concat(Object.keys(subs)).forEach(notify);
-  }
-
-  /* Backup / Restore buttons, added beside the page's Save control */
-  document.addEventListener('DOMContentLoaded', function () {
-    var host = document.querySelector('.savectl'); if (!host) return;
-    var pick = document.createElement('input'); pick.type = 'file'; pick.accept = '.json,application/json'; pick.hidden = true;
-    pick.onchange = function () {
-      var f = pick.files && pick.files[0]; if (!f) return;
-      var fr = new FileReader();
-      fr.onload = function () {
-        try { importData(String(fr.result)); note('Data restored'); } catch (e) { note('That file is not a Case Desk backup'); }
-        pick.value = '';
-      };
-      fr.readAsText(f);
-    };
-    var bk = document.createElement('button'); bk.textContent = 'Backup'; bk.title = 'Save all data to a file';
-    bk.onclick = function () {
-      var d = new Date(); var day = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-      deliver('CaseDesk_backup_' + day + '.json', new Blob([JSON.stringify(state)], { type: 'application/json' }));
-    };
-    var rs = document.createElement('button'); rs.textContent = 'Restore'; rs.title = 'Replace all data from a backup file';
-    rs.onclick = function () { pick.click(); };
-    host.appendChild(bk); host.appendChild(rs); host.appendChild(pick);
-    /* Word formats: loaded once from a private file, kept on this device only */
-    var fp = document.createElement('input'); fp.type = 'file'; fp.accept = '.zip,application/zip'; fp.hidden = true;
-    fp.onchange = async function () {
-      var f = fp.files && fp.files[0]; if (!f) return;
-      try {
-        var zip = await JSZip.loadAsync(await f.arrayBuffer()); var n = 0;
-        for (var i = 0; i < FORMATS.length; i++) {
-          var e = zip.file(FORMATS[i] + '.docx'); if (!e) continue;
-          var buf = await e.async('arraybuffer');
-          await idb('readwrite', (function (k, b) { return function (s) { return s.put(b, k); }; })(FORMATS[i], buf)); n++;
-        }
-        note(n ? n + ' Word formats loaded' : 'That file has no Case Desk formats');
-      } catch (e2) { note('Could not read that formats file'); }
-      fp.value = '';
-    };
-    var fb = document.createElement('button'); fb.textContent = 'Formats'; fb.title = 'Load your Word formats file';
-    fb.onclick = function () { fp.click(); };
-    host.appendChild(fb); host.appendChild(fp);
-  });
-
-  var FORMATS = ['report', 'worksheet', 'forwarding', 'notesheet', 'bsa63'];
+  /* ---------- Word formats kept on this device (phone app) ---------- */
   function idb(mode, fn) {
     return new Promise(function (resolve, reject) {
       var o = indexedDB.open('casedesk-formats', 1);
@@ -145,7 +104,75 @@
       };
     });
   }
-  window.CASEDESK_FORMATS = function (name) { return idb('readonly', function (s) { return s.get(name); }).catch(function () { return null; }); };
+  function b64buf(b64) { var s = atob(b64), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
+  async function storeFormats(map) {   // map: name -> ArrayBuffer
+    var n = 0;
+    for (var i = 0; i < FORMATS.length; i++) {
+      var b = map[FORMATS[i]]; if (!b) continue;
+      await idb('readwrite', (function (k, v) { return function (s) { return s.put(v, k); }; })(FORMATS[i], b)); n++;
+    }
+    return n;
+  }
+  async function formatsFromZip(file) {
+    var zip = await JSZip.loadAsync(await file.arrayBuffer()), map = {};
+    for (var i = 0; i < FORMATS.length; i++) { var e = zip.file(FORMATS[i] + '.docx'); if (e) map[FORMATS[i]] = await e.async('arraybuffer'); }
+    return map;
+  }
+  if (!BUILT_IN) {
+    window.CASEDESK_FORMATS = function (name) { return idb('readonly', function (s) { return s.get(name); }).catch(function () { return null; }); };
+    window.CASEDESK_HAS_FORMATS = async function () {
+      try { var b = await idb('readonly', function (s) { return s.get('report'); }); return !!b; } catch (e) { return false; }
+    };
+  }
 
-  if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  /* A backup or setup file: case data, optionally with the Word formats under "_formats" */
+  async function importData(raw) {
+    var s = JSON.parse(raw);
+    if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('bad file');
+    var fm = s._formats; delete s._formats;
+    var hasData = Object.keys(s).some(function (k) { return KNOWN.indexOf(k) >= 0; });
+    if (!hasData && !fm) throw new Error('bad file');
+    var n = 0;
+    if (fm && !BUILT_IN) { var map = {}; Object.keys(fm).forEach(function (k) { map[k] = b64buf(fm[k]); }); n = await storeFormats(map); }
+    if (hasData) { state = s; if (!persist()) throw new Error('not saved'); KNOWN.concat(Object.keys(subs)).forEach(notify); }
+    return { data: hasData, formats: n };
+  }
+
+  /* One picker for everything: a backup/setup .json, or the formats .zip */
+  var pick = null;
+  function openPicker() { if (pick) pick.click(); }
+  window.CASEDESK_LOAD_FORMATS = BUILT_IN ? undefined : openPicker;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var host = document.querySelector('.savectl'); if (!host) return;
+    pick = document.createElement('input'); pick.type = 'file'; pick.id = 'restorePick'; pick.hidden = true;
+    pick.accept = BUILT_IN ? '.json,application/json' : '.json,.zip,application/json,application/zip';
+    pick.onchange = async function () {
+      var f = pick.files && pick.files[0]; pick.value = ''; if (!f) return;
+      try {
+        if (/\.zip$/i.test(f.name) || f.type === 'application/zip') {
+          if (BUILT_IN) throw new Error('bad file');
+          var n = await storeFormats(await formatsFromZip(f));
+          note(n ? n + ' Word formats loaded. Documents can now be prepared.' : 'That zip has no Case Desk formats');
+        } else {
+          var r = await importData(await f.text());
+          note(r.data && r.formats ? 'Data and ' + r.formats + ' Word formats loaded' : r.formats ? r.formats + ' Word formats loaded' : 'Data restored');
+        }
+        if (typeof window.CASEDESK_REFRESH === 'function') window.CASEDESK_REFRESH();
+      } catch (e) { note('That file is not a Case Desk backup, setup or formats file'); }
+    };
+    var bk = document.createElement('button'); bk.textContent = 'Backup'; bk.title = 'Save all data to a file';
+    bk.onclick = function () {
+      var d = new Date(); var day = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+      deliver('CaseDesk_backup_' + day + '.json', new Blob([JSON.stringify(state)], { type: 'application/json' }));
+    };
+    var rs = document.createElement('button'); rs.textContent = 'Restore'; rs.id = 'btnRestore';
+    rs.title = BUILT_IN ? 'Replace all data from a backup file' : 'Load a backup or setup file (data and Word formats)';
+    rs.onclick = openPicker;
+    host.appendChild(bk); host.appendChild(rs); host.appendChild(pick);
+  });
+
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
 })();

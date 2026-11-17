@@ -242,7 +242,7 @@
       }
     }
   }
-  window.CASEDESK_SCAN = render;
+  if (!window.CASEDESK_NO_SCAN) window.CASEDESK_SCAN = render;
   window.__cdParse = location.hostname === 'localhost' ? parse : undefined;
 
   /* ---------- 2. voice typing ---------- */
