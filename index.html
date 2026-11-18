@@ -65,7 +65,7 @@ textarea{width:100%;resize:vertical;min-height:60px;box-sizing:border-box}
 .chip.high{background:var(--bad-soft);color:var(--bad)} .chip.normal{background:var(--panel-2);color:var(--muted)}
 .chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.info{background:var(--accent-soft);color:var(--accent)}
 /* pipeline diagram */
-.pipe{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:4px}
+.pipe{display:grid;grid-template-columns:repeat(18,minmax(0,1fr));gap:4px}
 .pipe-wrap{overflow-x:auto}
 .pipe-inner{min-width:760px}
 .stage{display:flex;flex-direction:column;gap:6px;cursor:pointer;background:none;border:none;padding:0;text-align:left;color:inherit;font:inherit}
@@ -129,6 +129,9 @@ td.num{font-variant-numeric:tabular-nums;text-align:right}
 .flow label{display:flex;flex-direction:column;padding:2px 0 14px;cursor:pointer}
 .flow label b{font-weight:600;font-size:13.5px}
 .flow label span{font-size:12px;color:var(--muted)}
+.flow label span.stamp{font-family:var(--f-mono);font-size:11.5px;margin-top:2px}
+.flow label span.stamp.ok{color:var(--ok)}
+.flow input[type=checkbox]:disabled{cursor:not-allowed;opacity:.45}
 .flow li.next label b::after{content:"Next";margin-left:8px;font-size:10.5px;font-weight:600;color:var(--warn);background:var(--warn-soft);border-radius:999px;padding:1px 7px;vertical-align:1px}
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .fields label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
@@ -285,7 +288,7 @@ details.ex .sm{flex:1;min-width:0;font-weight:600;font-size:13px;overflow-wrap:a
 
   <!-- FLOW -->
   <section class="view" id="v-flow" hidden>
-    <div><h2>Process flow, receipt to collection</h2><p class="sub">Thirteen steps every case passes through. Open a card to tick off its checklist; it moves to the next column on its own.</p></div>
+    <div><h2>Process flow, receipt to collection</h2><p class="sub">Eighteen steps every case passes through, in order. Open a card to tick off its checklist; it moves to the next column on its own.</p></div>
     <div class="board" id="board"></div>
     <div class="card">
       <div class="sechead"><div><h2>Evidence chain</h2><p class="sub">Each exhibit is hashed, cloned, extracted and analysed, and its hash is verified. The extracted data then goes onto one master, which is cloned to three copies. Numbers show items waiting at each point.</p></div></div>
@@ -386,29 +389,43 @@ details.ex .sm{flex:1;min-width:0;font-weight:600;font-size:13px;overflow-wrap:a
 <script src="jspdf.plugin.autotable.min.js"></script><script src="jszip.min.js"></script><script src="ocr/tesseract.min.js"></script><script src="extras.js"></script>
 <script>
 (function(){
+/* Case flow: 18 steps, done strictly in this order. Each tick is time-stamped in c.flowAt. */
 const STEPS=[
- {k:'received',l:'Parcels received',d:'Entered in case register; seals checked against forwarding letter'},
- {k:'opened',l:'Parcels opened',d:'Seals verified, exhibits photographed and marked'},
- {k:'cd',l:'Case opening CD',d:'Opening proceedings recorded to CD'},
- {k:'cloning',l:'Cloning / imaging',d:'Exhibits imaged, hash values recorded'},
- {k:'analysis',l:'Examination',d:'Analysis of extracted data'},
- {k:'worksheet',l:'Worksheet',d:'Worksheet completed with findings'},
- {k:'report',l:'Report drafted',d:'Examination report prepared'},
+ {k:'recv',l:'Receiving',d:'Parcels received and entered in the case register'},
+ {k:'open',l:'Opening',d:'Parcels opened, seals checked against the forwarding letter'},
+ {k:'fwdinfo',l:'Details from forwarding letter',d:'Memo no., RC/FIR, diary no., U/S and messenger filled in (Documents tab)'},
+ {k:'opensheet',l:'Case opening sheet',d:'Case opening sheet prepared'},
+ {k:'extract',l:'Extraction of devices',d:'Data extracted from every exhibit'},
+ {k:'queries',l:'Queries from forwarding letter',d:'Queries of the forwarding authority noted'},
+ {k:'analysis',l:'Analysis as per queries',d:'Extracted data analysed against each query'},
+ {k:'hashing',l:'Hashing',d:'Hash values of the extracted data generated'},
+ {k:'cloning',l:'Cloning',d:'Data cloned to the sterile media'},
+ {k:'worksheet',l:'Worksheet',d:'Case worksheet completed'},
+ {k:'draft',l:'Draft',d:'Examination report drafted'},
+ {k:'bsa63',l:'63(4)(c) certificate',d:'Certificate under section 63(4)(c) BSA prepared'},
+ {k:'tr',l:'TR',d:'Technical review of the draft'},
+ {k:'seal',l:'Parcel seal',d:'Exhibits resealed with the sample seal'},
+ {k:'fwdletter',l:'Forwarding letter',d:'Forwarding letter for collection issued'},
  {k:'pages',l:'Page numbering',d:'Report and annexures paginated'},
- {k:'sign',l:'Sign & SDFE stamp',d:'Signed and stamped by the examiner'},
- {k:'seal',l:'Sample seal / reseal',d:'Exhibits resealed with sample seal'},
- {k:'copies',l:'Final data copies',d:"Master cloned to 3 copies: IO, Hon'ble Court, Lab"},
- {k:'dispatched',l:'Report finalised',d:'Date of reporting entered'},
- {k:'collected',l:'Collected',d:'Report and exhibits collected by IO or sent to court'}
+ {k:'collection',l:'Collection formality',d:'Collection formalities completed with the IO or court'},
+ {k:'dispatch',l:'Dispatch',d:'Report and exhibits dispatched'}
 ];
-const SHORT={received:'Receipt',opened:'Opening',cd:'Opening CD',cloning:'Cloning',analysis:'Examination',worksheet:'Worksheet',report:'Report draft',pages:'Page no.',sign:'Sign/stamp',seal:'Sample seal',copies:'Data copies',dispatched:'Finalise',collected:'Collection'};
+const SHORT={recv:'Receiving',open:'Opening',fwdinfo:'Letter details',opensheet:'Opening sheet',extract:'Extraction',queries:'Queries',analysis:'Analysis',hashing:'Hashing',cloning:'Cloning',worksheet:'Worksheet',draft:'Draft',bsa63:'63(4)(c)',tr:'TR',seal:'Parcel seal',fwdletter:'Fwd. letter',pages:'Page no.',collection:'Collection',dispatch:'Dispatch'};
 const COLS=[
- {id:'intake',l:'Intake',h:'Received, waiting to be opened',ks:['received','opened']},
- {id:'lab',l:'Lab work',h:'Opening CD, cloning, examination, worksheet',ks:['cd','cloning','analysis','worksheet']},
- {id:'rep',l:'Reporting',h:'Draft, page numbering, sign, seal, data copies',ks:['report','pages','sign','seal','copies','dispatched']},
- {id:'await',l:'Awaiting collection',h:'Report finalised, not yet collected',ks:['collected']},
- {id:'done',l:'Completed',h:'Collected',ks:['__done']}
+ {id:'intake',l:'Intake',h:'Receiving, opening, letter details, opening sheet',ks:['recv','open','fwdinfo','opensheet']},
+ {id:'lab',l:'Lab work',h:'Extraction, queries, analysis, hashing, cloning, worksheet',ks:['extract','queries','analysis','hashing','cloning','worksheet']},
+ {id:'rep',l:'Reporting',h:'Draft, 63(4)(c), TR, parcel seal, forwarding letter',ks:['draft','bsa63','tr','seal','fwdletter']},
+ {id:'await',l:'Awaiting collection',h:'Page numbering, collection, dispatch',ks:['pages','collection','dispatch']},
+ {id:'done',l:'Completed',h:'Dispatched',ks:['__done']}
 ];
+/* Cases saved before the new flow keep their ticks, mapped onto the new steps */
+function flowOf(c){if(c.flow)return c.flow;const o=c.steps||{};
+  const m={recv:o.received,open:o.opened,fwdinfo:o.cd,opensheet:o.cd,extract:o.cloning,queries:o.analysis,analysis:o.analysis,hashing:o.cloning,cloning:o.cloning,worksheet:o.worksheet,draft:o.report,bsa63:o.report,tr:o.sign,seal:o.seal,fwdletter:o.dispatched,pages:o.pages,collection:o.collected,dispatch:o.collected};
+  const f={};Object.keys(m).forEach(k=>f[k]=!!m[k]);return f}
+function stepTime(c,k){const t=(c.flowAt||{})[k];if(t)return t;const fb={recv:c.received,open:c.opened,fwdletter:c.reported,collection:c.collected,dispatch:c.collected}[k];return fb||null}
+function caseStart(c){return c.opened||c.received||null}
+function dayTag(c,ts){const d0=dayOf(ts);if(!d0)return '';if(!c.opened)return c.received?' · day '+(daysBetween(c.received,d0)+1)+' since receipt':'';
+  const d=daysBetween(c.opened,d0);return d>=0?' · day '+(d+1)+' since opening':' · '+(-d)+' d before opening'}
 const $=s=>document.querySelector(s);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
 const DAY=864e5;
@@ -416,6 +433,8 @@ const todayISO=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezone
 const parse=s=>s?new Date(s+'T00:00:00'):null;
 const daysBetween=(a,b)=>Math.round((parse(b)-parse(a))/DAY);
 const fmt=s=>{if(!s)return '—';const d=parse(s);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})};
+const fmtWhen=iso=>new Date(iso).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+const dayOf=iso=>{if(!iso)return null;if(iso.length<=10)return iso;const d=new Date(iso);return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 const addDays=(iso,n)=>{const d=parse(iso);d.setDate(d.getDate()+n);return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 
 let db=null,user=null,uid=null,canWrite=true;
@@ -427,6 +446,7 @@ $('#todayLbl').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short
 
 const EXTYPES=[['mobile','Mobile phone'],['sim','SIM card'],['laptop','Laptop'],['desktop','Desktop / CPU'],['hdd','Hard disk (HDD)'],['ssd','SSD'],['pen','Pen drive'],['mem','Memory card'],['optical','CD / DVD'],['dvr','CCTV DVR / NVR'],['tablet','Tablet / iPad'],['watch','Smartwatch'],['camera','Digital camera'],['network','Router / network device'],['cloud','Cloud / e-mail account'],['other','Other']];
 const TYPE=Object.fromEntries(EXTYPES);
+const SIMVENDORS=['Jio','Jio 4G','Jio 5G','Airtel','Airtel 4G','Airtel 4G 128K','Airtel 5G','Vi (Vodafone Idea)','Vodafone','Idea','BSNL','BSNL 3G','BSNL 4G','BSNL 5G','MTNL','Tata Docomo','Aircel','Telenor (Uninor)','Reliance'];
 const OFFICERS=[['jiju','Dr. Jiju PV'],['rana','Sh. RS Rana']];const OFF=Object.fromEntries(OFFICERS);
 const CHAIN=[
  {k:'hash',l:'Hashing',d:'Write-blocked, acquisition hash'},
@@ -452,10 +472,10 @@ function copiesState(c){const cp=(c.final||{}).copies||{};return COPIES.filter((
 function caseTypes(c){const s=new Set(c.exhibitTypes||[]);exList(c).forEach(x=>x.type&&s.add(x.type));return [...s]}
 
 /* ---------- derived ---------- */
-function stepDone(c,k){const s=c.steps||{};if(k==='copies'&&s.copies===undefined)return !!s.dispatched;return !!s[k]}
+function stepDone(c,k){return !!flowOf(c)[k]}
 function nextStep(c){for(const st of STEPS){if(!stepDone(c,st.k))return st.k}return null}
 function doneCount(c){return STEPS.filter(x=>stepDone(c,x.k)).length}
-function status(c){const s=c.steps||{};if(s.collected)return 'done';if(s.dispatched)return 'awaiting';return 'open'}
+function status(c){const f=flowOf(c);if(f.dispatch)return 'done';if(f.fwdletter)return 'awaiting';return 'open'}
 function age(c){return c.received?daysBetween(c.received,todayISO()):null}
 function dlState(iso){if(!iso)return null;const d=daysBetween(todayISO(),iso);if(d<0)return 'bad';if(d<=7)return 'warn';return 'ok'}
 function dlLabel(iso){if(!iso)return '';const d=daysBetween(todayISO(),iso);if(d<0)return (-d)+' d overdue';if(d===0)return 'Due today';return 'in '+d+' d'}
@@ -669,15 +689,10 @@ function typesUnion(c,list){const s=new Set(c.exhibitTypes||[]);list.forEach(x=>
 function updEx(c,xid,patch,log){
   const list=exList(c).map(x=>x.id===xid?Object.assign({},x,patch):x);
   const p={exhibitList:list,exhibitTypes:typesUnion(c,list)};
-  if(list.length){const st=Object.assign({},c.steps);let ch=false;
-    if(list.every(x=>(x.chain||{}).clone)&&!st.cloning){st.cloning=true;ch=true}
-    if(list.every(x=>(x.chain||{}).extract&&(x.chain||{}).analyse)&&!st.analysis){st.analysis=true;ch=true}
-    if(ch)p.steps=st}
   saveCase(c.id,p,log);
 }
 function saveFinal(c,patch,log){
   const f=Object.assign({},c.final||{},patch);const p={final:f};
-  const cp=f.copies||{};if(COPIES.every(([k])=>copyReady(cp[k]))&&!(c.steps||{}).copies){p.steps=Object.assign({},c.steps,{copies:true})}
   saveCase(c.id,p,log);
 }
 
@@ -703,23 +718,32 @@ function renderSheet(){
 }
 
 function tabCheck(c,body){
-  const n=nextStep(c);const sm=el('div','rowbtns');
+  const n=nextStep(c);const sm=el('div','rowbtns');const fl=flowOf(c);
   sm.append(el('span','chip '+(n?'info':'ok'),n?'Next: '+STEPS.find(s=>s.k===n).l:'Case completed'),el('span','chip normal',doneCount(c)+' of '+STEPS.length+' steps'));
-  if(age(c)!=null&&n)sm.append(el('span','chip '+(age(c)>365?'bad':age(c)>180?'warn':'normal'),age(c)+' days since receipt'));
+  const st0=caseStart(c);
+  if(st0){const endD=n?todayISO():(dayOf(stepTime(c,'dispatch'))||todayISO());const dd=daysBetween(st0,endD);
+    sm.append(el('span','chip '+(!n?'ok':dd>365?'bad':dd>180?'warn':'normal'),(n?'Day '+(dd+1)+' since case opened':'Completed in '+(dd+1)+' days')+' · '+fmt(st0)))}
   body.append(sm);
   const of=el('div','fields');of.append(fieldEl('Reporting officer',sel('sh-off',[['','Not assigned']].concat(OFFICERS),c.officer||'',v=>saveCase(c.id,{officer:v||null},'Reporting officer: '+(OFF[v]||'not assigned')))));body.append(of);
-  body.append(el('p','sub','Tick each step as you finish it. Opening, reporting and collection dates fill in with today if empty. Cloning and examination tick themselves once every exhibit has finished those stages under Exhibits & analysis.'));
-  const L=exList(c);
+  body.append(el('p','sub','Steps go strictly in order: a step unlocks only when the one before it is ticked. Each tick records the date and time. To undo, untick the latest step first.'));
   const ul=el('ul','flow');
-  STEPS.forEach(s=>{const done=stepDone(c,s.k);const li=el('li',done?'done':s.k===n?'next':'');
-    const cb=el('input');cb.type='checkbox';cb.checked=done;cb.id='st-'+s.k;cb.disabled=!canWrite;
-    const lb=el('label');lb.htmlFor=cb.id;let d=s.d;
-    if(L.length&&s.k==='cloning')d+=' · '+L.filter(x=>(x.chain||{}).clone).length+'/'+L.length+' exhibits cloned';
-    if(L.length&&s.k==='analysis')d+=' · '+L.filter(x=>(x.chain||{}).analyse).length+'/'+L.length+' exhibits analysed';
-    if(s.k==='copies')d+=' · '+copiesState(c)+'/3 copies ready';
-    lb.append(el('b','',s.l),el('span','',d));
-    cb.onchange=()=>{const steps=Object.assign({},c.steps,{[s.k]:cb.checked});const patch={steps};
-      if(cb.checked){const t=todayISO();if(s.k==='opened'&&!c.opened)patch.opened=t;if(s.k==='dispatched'&&!c.reported)patch.reported=t;if(s.k==='collected'&&!c.collected)patch.collected=t;}
+  STEPS.forEach((s,i)=>{const done=!!fl[s.k];const li=el('li',done?'done':s.k===n?'next':'');
+    const prevOk=i===0||!!fl[STEPS[i-1].k];const nextDone=i<STEPS.length-1&&!!fl[STEPS[i+1].k];
+    const locked=done?nextDone:!prevOk;
+    const cb=el('input');cb.type='checkbox';cb.checked=done;cb.id='st-'+s.k;cb.disabled=!canWrite||locked;
+    const lb=el('label');lb.htmlFor=cb.id;
+    const ts=stepTime(c,s.k);let when='';
+    if(done){if(ts){const exact=ts.length>10;when=(exact?fmtWhen(ts):fmt(ts))+dayTag(c,ts);}else when='Done · time not recorded';}
+    else if(!prevOk)when='Locked until “'+STEPS[i-1].l+'” is done';
+    lb.append(el('b','',(i+1)+'. '+s.l),el('span','',s.d));
+    if(when){const w=el('span','stamp'+(done?' ok':''),when);lb.append(w)}
+    cb.onchange=()=>{const cur=cases[c.id];const f=Object.assign({},flowOf(cur));const at=Object.assign({},cur.flowAt||{});
+      if(cb.checked){if(i>0&&!f[STEPS[i-1].k]){cb.checked=false;toast('Finish “'+STEPS[i-1].l+'” first');return}
+        f[s.k]=true;at[s.k]=new Date().toISOString()}
+      else{if(i<STEPS.length-1&&f[STEPS[i+1].k]){cb.checked=true;toast('Untick “'+STEPS[i+1].l+'” first');return}
+        f[s.k]=false;delete at[s.k]}
+      const patch={flow:f,flowAt:at};
+      if(cb.checked){const t=todayISO();if(s.k==='open'&&!cur.opened)patch.opened=t;if(s.k==='fwdletter'&&!cur.reported)patch.reported=t;if(s.k==='collection'&&!cur.collected)patch.collected=t;}
       saveCase(c.id,patch,(cb.checked?'Completed: ':'Reopened: ')+s.l)};
     li.append(cb,lb);ul.append(li)});
   body.append(ul);
@@ -758,20 +782,34 @@ function tabEx(c,body){
   if(!L.length)reg.append(el('div','empty','No exhibits logged yet. Pick a type below and add the first one, e.g. Ex-1 mobile phone.'));
   L.forEach((x,ix)=>{
     const d=el('details','ex');d.open=openEx.has(x.id);d.ontoggle=()=>{d.open?openEx.add(x.id):openEx.delete(x.id)};
-    const s=el('summary');s.append(el('span','chip info',x.mark||('Ex-'+(ix+1))),el('span','sm',[TYPE[x.type]||'Device',x.make].filter(Boolean).join(' · ')+(num(x.cap)?' · '+fmtGB(num(x.cap)):'')));
-    const dn=exDone(x);s.append(el('span','chip '+(dn===CHAIN.length?'ok':dn?'warn':'normal'),dn===CHAIN.length?'Chain complete':dn+'/'+CHAIN.length));
+    const s=el('summary');s.append(el('span','chip info',x.mark||('Ex-'+(ix+1))),el('span','sm',(x.type==='sim'?[TYPE.sim,x.vendor]:[TYPE[x.type]||'Device',x.make,x.model]).filter(Boolean).join(' · ')+(x.type!=='sim'&&num(x.cap)?' · '+fmtGB(num(x.cap)):'')));
+    const dn=exDone(x);if(x.type!=='sim')s.append(el('span','chip '+(dn===CHAIN.length?'ok':dn?'warn':'normal'),dn===CHAIN.length?'Chain complete':dn+'/'+CHAIN.length));
     if(x.hashPre&&x.hashPost)s.append(el('span','chip '+(x.hashPre.trim().toLowerCase()===x.hashPost.trim().toLowerCase()?'ok':'bad'),x.hashPre.trim().toLowerCase()===x.hashPost.trim().toLowerCase()?'Hash match':'Hash mismatch'));
     d.append(s);
     const b=el('div','exbody');const p='x'+x.id+'-';
     const up=(k,lbl)=>(v)=>updEx(c,x.id,{[k]:typeof v==='string'?v.trim():v},(x.mark||'Exhibit')+': '+lbl+' updated');
+    if(typeof window.CASEDESK_LABELSCAN==='function'&&x.type!=='cloud')b.append(window.CASEDESK_LABELSCAN({key:x.id,type:x.type,canWrite,apply:(patch)=>updEx(cases[c.id],x.id,patch,(x.mark||'Exhibit')+': details read from a label photo')}));
     const f1=el('div','fields');
-    f1.append(fieldEl('Marking',inp(p+'mark','text',x.mark||'',up('mark','marking'),'Ex-1')),
-      fieldEl('Type',sel(p+'type',EXTYPES,x.type,up('type','type'))),
-      fieldEl('Make / model',inp(p+'make','text',x.make||'',up('make','make/model'),'e.g. Samsung A54')),
-      fieldEl(x.type==='mobile'||x.type==='tablet'?'IMEI / serial':x.type==='sim'?'ICCID':'Serial no.',inp(p+'serial','text',x.serial||'',up('serial','serial'))),
-      fieldEl('Storage capacity (GB)',inp(p+'cap','number',x.cap??'',v=>updEx(c,x.id,{cap:v===''?null:num(v)},(x.mark||'Exhibit')+': capacity '+v+' GB'),'e.g. 128')),
-      fieldEl('Storage analysed (GB)',inp(p+'an','number',x.analysed??'',v=>updEx(c,x.id,{analysed:v===''?null:num(v)},(x.mark||'Exhibit')+': analysed '+v+' GB'),'Used space examined')),
-      fieldEl('Data extracted for hand-over (GB)',inp(p+'del','number',x.deliver??'',v=>updEx(c,x.id,{deliver:v===''?null:num(v)},(x.mark||'Exhibit')+': extracted data '+v+' GB'),'Goes on the final copies')));
+    f1.append(fieldEl('Exhibit marking',inp(p+'mark','text',x.mark||'',up('mark','marking'),'e.g. M1 or M1/S1')),
+      fieldEl('Type',sel(p+'type',EXTYPES,x.type,up('type','type'))));
+    if(x.type==='sim'){
+      /* SIM card: marking, vendor and ICCID only */
+      const known=SIMVENDORS.includes(x.vendor||'');const other=!!x.vendorOther||(!!x.vendor&&!known);
+      f1.append(fieldEl('Vendor',sel(p+'vendor',[['','Select vendor']].concat(SIMVENDORS.map(v=>[v,v]),[['__other','Other']]),other?'__other':(x.vendor||''),v=>{if(v==='__other')updEx(c,x.id,{vendorOther:true,vendor:known?null:x.vendor||null},(x.mark||'SIM')+': vendor other');else updEx(c,x.id,{vendor:v||null,vendorOther:false},(x.mark||'SIM')+': vendor '+(v||'cleared'))})));
+      if(other)f1.append(fieldEl('Vendor name',inp(p+'vendorx','text',x.vendor||'',up('vendor','vendor'),'Type the carrier')));
+      f1.append(fieldEl('ICCID',inp(p+'iccid','text',x.iccid||x.serial||'',v=>updEx(c,x.id,{iccid:v.trim()||null,serial:null},(x.mark||'SIM')+': ICCID updated'),'19–20 digits, starts with 89'),true));
+    }else{
+      f1.append(fieldEl('Make',inp(p+'make','text',x.make||'',up('make','make'),'e.g. Samsung')),
+        fieldEl('Model name',inp(p+'model','text',x.model||'',up('model','model name'),'e.g. Galaxy S23 Ultra')),
+        fieldEl('Model no.',inp(p+'modelNo','text',x.modelNo||'',up('modelNo','model no.'),'e.g. SM-S918B/DS')),
+        fieldEl('Serial no.',inp(p+'serial','text',x.serial||'',up('serial','serial no.'),'From the label, not the IMEI')));
+      if(x.type==='mobile'||x.type==='tablet'||x.type==='watch')f1.append(
+        fieldEl('IMEI 1',inp(p+'imei1','text',x.imei1||'',up('imei1','IMEI 1'),'15 digits')),
+        fieldEl('IMEI 2',inp(p+'imei2','text',x.imei2||'',up('imei2','IMEI 2'),'15 digits, if dual SIM')));
+      f1.append(fieldEl('Storage capacity (GB)',inp(p+'cap','number',x.cap??'',v=>updEx(c,x.id,{cap:v===''?null:num(v)},(x.mark||'Exhibit')+': capacity '+v+' GB'),'e.g. 128')),
+        fieldEl('Storage analysed (GB)',inp(p+'an','number',x.analysed??'',v=>updEx(c,x.id,{analysed:v===''?null:num(v)},(x.mark||'Exhibit')+': analysed '+v+' GB'),'Used space examined')),
+        fieldEl('Data extracted for hand-over (GB)',inp(p+'del','number',x.deliver??'',v=>updEx(c,x.id,{deliver:v===''?null:num(v)},(x.mark||'Exhibit')+': extracted data '+v+' GB'),'Goes on the final copies')));
+    }
     f1.querySelectorAll('input[type=number]').forEach(i=>{i.min='0';i.step='any'});
     b.append(f1);
     const tools=Array.isArray(x.tools)?x.tools:(x.tool?[{stage:'extraction',name:x.tool,version:''}]:[]);
@@ -789,6 +827,7 @@ function tabEx(c,body){
       const ad=el('button','ghost','+ Add '+(stg==='extraction'?'extraction':'analysis')+' tool');ad.type='button';ad.style.alignSelf='flex-start';ad.disabled=!canWrite;
       ad.onclick=()=>{const ni=tools.length;setTools(tools.concat([{stage:stg,name:'',version:''}]),null);const f=document.getElementById(p+'tl'+ni+'n');if(f)f.focus()};
       sec.append(ad);tbx.append(sec)});
+    if(x.type!=='sim'){
     b.append(tbx);
     b.append(el('p','minihead','Analysis chain'));
     const ch=el('div','chain');
@@ -802,6 +841,7 @@ function tabEx(c,body){
     b.append(f2);
     const ta=el('textarea');ta.id=p+'notes';ta.placeholder='Condition, lock status, observations';ta.value=x.notes||'';ta.disabled=!canWrite;ta.onchange=()=>up('notes','notes')(ta.value);
     const f3=el('div','fields');f3.append(fieldEl('Notes',ta,true));b.append(f3);
+    }
     const rb=el('div','rowbtns');const del=el('button','ghost',confirmDel===x.id?'Confirm: remove '+(x.mark||'exhibit'):'Remove exhibit');del.id=p+'del-btn';del.disabled=!canWrite;
     if(confirmDel===x.id){del.style.color='var(--bad)';const cn=el('button','ghost','Keep');cn.onclick=()=>{confirmDel=null;renderSheet()};rb.append(del,cn)}else rb.append(del);
     del.onclick=()=>{if(confirmDel!==x.id){confirmDel=x.id;renderSheet();return}confirmDel=null;const list=exList(c).filter(y=>y.id!==x.id);openEx.delete(x.id);saveCase(c.id,{exhibitList:list},'Exhibit removed: '+(x.mark||''))};
@@ -909,7 +949,7 @@ function addMissingBtn(T){if(!loaded.cases)return;const miss=list().filter(c=>!e
 function nextMissing(cur){const miss=list().filter(c=>!exList(c).length&&c.id!==cur).sort((a,b)=>(status(a)==='done')-(status(b)==='done')||a.sno-b.sno);const after=miss.find(c=>c.sno>(cases[cur]||{}).sno&&status(c)!=='done');return after||miss[0]||null}
 function renderChainPipe(){
   const P=$('#chainPipe');if(!P)return;P.replaceChildren();
-  const all=list().filter(c=>status(c)!=='done');const ex=all.flatMap(c=>exList(c));
+  const all=list().filter(c=>status(c)!=='done');const ex=all.flatMap(c=>exList(c)).filter(x=>x.type!=='sim');
   const cnt={};CHAIN.forEach(s=>cnt[s.k]=0);ex.forEach(x=>{const n=exNext(x);if(n)cnt[n]++});
   const withEx=all.filter(c=>exList(c).length);
   const items=CHAIN.map(s=>[s.k,s.l,cnt[s.k],'exhibits'])
@@ -937,8 +977,8 @@ function renderNew(){
   f.append(fs,sb);
   f.onsubmit=async e=>{e.preventDefault();if(!db)return toast('Saving is unavailable in this view');
     const max=Math.max(0,...list().map(c=>c.sno||0));const sno=max+1;let id='c'+String(sno).padStart(3,'0');while(cases[id])id+='b';
-    const steps={};STEPS.forEach(s=>steps[s.k]=s.k==='received');
-    const data={sno,cfsl:cf.value.trim(),rc:rc.value.trim(),exhibits:ex.value.trim()||null,parcels:pa.value?Number(pa.value):null,received:rcv.value,opened:null,reported:null,collected:null,remarks:ta.value.trim(),priority:sp.value,officer:so.value||null,deadline:dlI.value||null,steps,createdAt:new Date().toISOString()};
+    const flow={};STEPS.forEach(s=>flow[s.k]=s.k==='recv');const nowIso=new Date().toISOString();
+    const data={sno,cfsl:cf.value.trim(),rc:rc.value.trim(),exhibits:ex.value.trim()||null,parcels:pa.value?Number(pa.value):null,received:rcv.value,opened:null,reported:null,collected:null,remarks:ta.value.trim(),priority:sp.value,officer:so.value||null,deadline:dlI.value||null,flow,flowAt:{recv:nowIso},createdAt:nowIso};
     try{await db.doc('cases/'+id).set(data);cases[id]=Object.assign({id},data);logAct(id,'New case registered');toast('Case added');openSheet(id);renderAll()}catch(err){handleErr(err)}};
   body.append(f);sh.append(head,body);
 }
@@ -1452,7 +1492,7 @@ function docData(c){
   const rep=x=>x.reportTool||'';
   const dec=(x,i)=>Object.assign({},x,{n:i+1,extraction:tool(x),reportTool:rep(x),typeName:DTNAME[x.type]||'Exhibit',markQ:'**'+q(x.mark||'')+'**',makeModel:[x.make,x.modelName].filter(Boolean).join(' '),
     imeiText:'**IMEI (SIM Slot 1):**\n'+(x.imei1||'')+'\n**IMEI (SIM Slot 2):**\n'+(x.imei2||''),housing:(()=>{const h=housing(x,all);return h.text?h.text+'\n'+h.marks:''})(),locked:(x.locked||'').toUpperCase()});
-  return {cfsl:c.cfsl||'',to:D.to||'',memoNo:D.memoNo||'',memoDate:dSep(D.memoDate,'/'),us:D.us||'',rcNo:D.rcNo||c.rc||'',rcDate:dSep(D.rcDate,'/'),branch:D.branch||'',through:D.through||'',diaryNo:D.diaryNo||'',
+  return {cfsl:c.cfsl||'',to:D.to||'',memoNo:D.memoNo||'',memoDate:dSep(D.memoDate,'/'),us:D.us||'',rcNo:D.rcNo||c.rc||'',rcDate:dSep(D.rcDate,'/'),branch:D.branch||'',through:D.through||[D.messenger,D.beltNo?'Belt No. '+D.beltNo:''].filter(Boolean).join(' - '),diaryNo:D.diaryNo||'',
     receivedDate:dSep(c.received,'/'),receivedDash:dSep(c.received,'-'),openedSlash:dSep(c.opened,'/'),openedLong:dLong(c.opened,false),reportDate:dSep(c.reported,'.'),reportSlash:dSep(c.reported,'/'),reportLong:dLong(c.reported,true),
     certTime:D.certTime||'',hash:D.hash||'',mediaMark:mk,mediaMake:D.mediaMake||'',mediaCap:cap,mediaSectors:D.mediaSectors||'',mediaDesc:[kind,D.mediaMake].filter(Boolean).join(' ')+(cap?', '+cap:''),
     parcelCount:numWord((D.parcels||[]).length),
@@ -1494,8 +1534,10 @@ function importExhibits(c){
   const tv=q=>q&&q.name?q.name+(q.version?' (Ver.'+q.version+')':''):null;
   exList(c).forEach(x=>{const mark=(x.mark||'').trim();if(!mark||have.has(mark))return;
     const t=EXMAP[x.type]||'other';const tools=Array.isArray(x.tools)?x.tools:[];
-    const it={type:t,mark,make:x.make||null};const sn=(x.serial||'').trim()||null;
-    if(t==='sim')it.iccid=sn;else if(t==='mobile'&&sn&&/^\d{15}$/.test(sn))it.imei1=sn;else it.serial=sn;
+    const it={type:t,mark};const sn=(x.serial||'').trim()||null;
+    if(t==='sim'){it.iccid=x.iccid||sn;it.vendor=x.vendor||null}
+    else{it.make=x.make||null;it.modelName=x.model||null;it.modelNo=x.modelNo||null;it.imei1=x.imei1||null;it.imei2=x.imei2||null;
+      if(t==='mobile'&&sn&&/^\d{15}$/.test(sn)&&!it.imei1)it.imei1=sn;else it.serial=sn}
     if(num(x.cap))it.storage=num(x.cap)+' GB';
     const ex=tools.find(q=>q.stage==='extraction'),an=tools.find(q=>q.stage==='analysis');if(tv(ex))it.tool=tv(ex);if(tv(an))it.reportTool=tv(an);
     const m=/^(.+?)\/(S\d+|MC)$/i.exec(mark);if(m&&(t==='sim'||t==='mc'))it.parent=m[1];
@@ -1516,10 +1558,12 @@ function tabDocs(c,body){
   if(typeof window.CASEDESK_SCAN==='function'){const sb=el('div','box');body.append(sb);try{window.CASEDESK_SCAN(sb,{id:c.id,canWrite,docs:()=>JSON.parse(JSON.stringify((cases[c.id]||{}).docs||{})),apply:(patch,log)=>setD(patch,log)})}catch(e){}}
   const b1=el('div','box');b1.append(el('h2','','Forwarding authority and reference'));const f1=el('div','fields');
   f1.append(fieldEl('Addressed to (one line per row)',area('dc-to',D.to,'The Head of Branch,\nCentral Bureau of Investigation, ...',v=>setD({to:v.trim()||null},'Addressee updated')),true));
-  F(f1,'memoNo','Memo / reference no.','text','e.g. 123/RC0000000A0000/CBI/City',true);F(f1,'memoDate','Memo dated','date');F(f1,'rcDate','RC / FIR dated','date');
-  F(f1,'rcNo','RC / FIR no. in full','text',c.rc||'');F(f1,'branch','Branch','text','e.g. CBI, ACB, City');
-  F(f1,'us','Under section','text','e.g. 61(2) BNS r/w 7 of PC Act 1988',true);F(f1,'through','Received through (name, rank, no.)','text','e.g. Insp. Name -000000',true);
-  F(f1,'diaryNo','CFSL diary no.','text');F(f1,'certTime','Certificate time (24 h)','time');b1.append(f1);body.append(b1);
+  F(f1,'memoNo','Forwarding memo no.','text','e.g. 123/RC0000000A0000/CBI/City',true);F(f1,'memoDate','Memo date','date');F(f1,'diaryNo','Diary no. CFSL','text');
+  F(f1,'rcNo','RC No. / FIR','text',c.rc||'');F(f1,'rcDate','RC / FIR dated','date');
+  F(f1,'us','U/S','text','e.g. 61(2) BNS r/w 7 of PC Act 1988',true);F(f1,'branch','Branch','text','e.g. CBI, ACB, City');
+  F(f1,'messenger','Messenger name (case acceptance)','text','e.g. Insp. Name');F(f1,'beltNo','Belt no.','text');
+  F(f1,'through','Received through, as printed in the report','text',[D.messenger,D.beltNo?'Belt No. '+D.beltNo:''].filter(Boolean).join(' - ')||'Filled from messenger name and belt no.',true);
+  F(f1,'certTime','Certificate time (24 h)','time');b1.append(f1);body.append(b1);
   const b2=el('div','box');b2.append(el('h2','','Sterile media and hash'));const f2=el('div','fields');
   F(f2,'mediaMark','Marked in laboratory','text','e.g. PD-DATA-I');F(f2,'mediaKind','Kind of media','text','USB Pen Drive');F(f2,'mediaMake','Make and model','text','e.g. make and model');F(f2,'mediaCap','Capacity','text','e.g. 128GB');F(f2,'mediaSectors','Total sectors','text');
   F(f2,'hash','SHA-256 hash of the media','text','',true);
@@ -1539,7 +1583,12 @@ function tabDocs(c,body){
       const xf=el('div','fields');const X=(k,l,ph,full)=>xf.append(fieldEl(l,inp(id+k,'text',it[k]||'',v=>upd(k,v),ph),full));
       xf.append(fieldEl('Type',sel(id+'type',DTYPES,it.type||'mobile',v=>upd('type',v))));X('mark','Marked in laboratory','e.g. M1 or M1/S1');
       if(P.length>1)xf.append(fieldEl('Parcel',sel(id+'pp',P.map((_,j)=>[String(j),'Parcel-'+(j+1)]),String(pi),v=>{const to=Number(v);if(to===pi)return;const np=cp();const [mv]=np[pi].items.splice(ii,1);(np[to].items=np[to].items||[]).push(mv);openDocP.add(to);saveP(np,'Exhibit '+(it.mark||'')+' moved to Parcel-'+(to+1))})));
-      if(it.type==='sim'){X('parent','Housed in (marking)','e.g. M1');X('vendor','Vendor','e.g. Airtel 4G');X('iccid','ICCID','',true)}
+      if(typeof window.CASEDESK_LABELSCAN==='function')ib.append(window.CASEDESK_LABELSCAN({key:'d'+pi+'-'+ii,type:it.type,canWrite,apply:(r)=>{const np=cp();const t2=np[pi].items[ii];const map={model:'modelName'};Object.keys(r).forEach(k=>{t2[map[k]||k]=r[k]});saveP(np,'Exhibit '+(it.mark||'')+' details read from a label photo')}}));
+      if(it.type==='sim'){X('parent','Housed in (marking)','e.g. M1');
+        const known=SIMVENDORS.includes(it.vendor||'');const other=!!it.vendorOther||(!!it.vendor&&!known);
+        xf.append(fieldEl('Vendor',sel(id+'vendor',[['','Select vendor']].concat(SIMVENDORS.map(v=>[v,v]),[['__other','Other']]),other?'__other':(it.vendor||''),v=>{const np=cp();const t2=np[pi].items[ii];if(v==='__other'){t2.vendorOther=true;if(known)t2.vendor=null}else{t2.vendor=v||null;t2.vendorOther=false}saveP(np,'Exhibit '+(it.mark||'')+' vendor updated')})));
+        if(other)X('vendor','Vendor name','Type the carrier');
+        X('iccid','ICCID','19–20 digits, starts with 89',true)}
       else{if(it.type!=='mobile')X('parent','Housed in (marking)','blank if separate');X('make','Make');X('modelName','Model name');
         if(it.type==='mobile'){X('modelNo','Model no.');X('imei1','IMEI 1');X('imei2','IMEI 2');X('locked','Locked / unlocked','UNLOCKED')}
         X('serial','Serial no.');X('storage','Storage','e.g. 256 GB')}
